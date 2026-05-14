@@ -2,14 +2,19 @@
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local WaveManager = {}
 
+-- IMPORT THE SERVICES
+local EnemyAIService = require(script.Parent:WaitForChild("EnemyAIService"))
+local PartCache = require(ReplicatedStorage.SharedModules:WaitForChild("PartCache"))
+
 -- [[ CONFIGURATION ]]
-local MAX_ACTIVE_MONSTERS: number = 60 -- The physics safety limit
+local MAX_ACTIVE_MONSTERS: number = 60
 local BASE_MONSTERS: number = 10
-local WAVE_MULTIPLIER: number = 1.25 -- Exponential scaling
-local INTERMISSION_TIME: number = 10 -- Seconds between waves
+local WAVE_MULTIPLIER: number = 1.25
+local INTERMISSION_TIME: number = 10
 
 -- [[ STATE ]]
 local CurrentWave: number = 0
@@ -18,21 +23,46 @@ local MonstersSpawned: number = 0
 local ActiveMonsters: number = 0
 local WaveInProgress: boolean = false
 
--- [[ TEMPORARY STUB: Will connect to EnemyAIService and PartCache next ]]
+-- [[ CACHE INITIALIZATION ]]
+-- We will initialize this when the Arena boots up
+local MonsterPool: any = nil 
+
 local function SpawnMonster()
 	ActiveMonsters += 1
 	MonstersSpawned += 1
 	
-	-- TODO in Phase 4.5: Pull monster from PartCache, set health based on CurrentWave math, and assign AI.
-	-- For now, we simulate the spawn logging so you can see the engine working.
-	-- print("[WaveManager] Spawned Monster. Active: " .. ActiveMonsters .. " | Total Spawned: " .. MonstersSpawned .. "/" .. TotalWaveQuota)
+	-- Calculate a random spawn position around the center of the map (Assuming 0,0,0 is center)
+	local randomAngle = math.rad(math.random(0, 360))
+	local spawnRadius = 50 -- Spawn 50 studs away from center
+	local spawnX = math.cos(randomAngle) * spawnRadius
+	local spawnZ = math.sin(randomAngle) * spawnRadius
+	local spawnPosition = CFrame.new(spawnX, 5, spawnZ) -- Drop from 5 studs high
+
+	-- Pull from Object Pool
+	local monster = MonsterPool:GetPart(spawnPosition)
+	
+	-- Connect Death Event
+	local humanoid = monster:FindFirstChildWhichIsA("Humanoid")
+	if humanoid then
+		local deathConnection
+		deathConnection = humanoid.Died:Connect(function()
+			deathConnection:Disconnect()
+			WaveManager.OnMonsterDeath(monster)
+		end)
+	end
+	
+	-- Command the AI to attack
+	EnemyAIService.StartHunting(monster)
 end
 
--- Call this function whenever an Enemy dies (We will hook this up in the Hitbox/Combat phase)
-function WaveManager.OnMonsterDeath()
+function WaveManager.OnMonsterDeath(monster: Model)
 	ActiveMonsters -= 1
 	
-	-- Did we finish the entire wave?
+	-- Return the body to the Graveyard instead of Destroying it
+	task.delay(2, function() -- Let the corpse lie there for 2 seconds before recycling
+		MonsterPool:ReturnPart(monster)
+	end)
+	
 	if ActiveMonsters <= 0 and MonstersSpawned >= TotalWaveQuota then
 		WaveManager.EndWave()
 	end
@@ -40,10 +70,9 @@ end
 
 -- [[ CORE LOOP ]]
 local function ProcessWaveQueue()
-	-- If we haven't met the quota, and we are safely below the physics crash limit, spawn more.
 	while WaveInProgress and ActiveMonsters < MAX_ACTIVE_MONSTERS and MonstersSpawned < TotalWaveQuota do
 		SpawnMonster()
-		task.wait(0.1) -- Stagger spawns slightly to prevent CPU spike
+		task.wait(0.1)
 	end
 end
 
@@ -53,23 +82,16 @@ function WaveManager.StartWave()
 	CurrentWave += 1
 	WaveInProgress = true
 	
-	-- Calculate how many monsters belong in this wave
 	TotalWaveQuota = math.floor(BASE_MONSTERS * (WAVE_MULTIPLIER ^ (CurrentWave - 1)))
 	MonstersSpawned = 0
 	ActiveMonsters = 0
 	
-	print("\n==================================")
-	print("🚨 WAVE " .. CurrentWave .. " STARTED 🚨")
-	print("Target Monster Quota: " .. TotalWaveQuota)
-	print("==================================\n")
+	print("\n🚨 WAVE " .. CurrentWave .. " STARTED 🚨 Quota: " .. TotalWaveQuota)
 	
-	-- Fire a RemoteEvent here later to tell the Client UI to show "WAVE X"
-	
-	-- Start the background loop to stream monsters in
 	task.spawn(function()
 		while WaveInProgress do
 			ProcessWaveQueue()
-			task.wait(1) -- Check the queue every second
+			task.wait(1)
 		end
 	end)
 end
@@ -77,29 +99,37 @@ end
 function WaveManager.EndWave()
 	WaveInProgress = false
 	print("✅ Wave " .. CurrentWave .. " Cleared!")
-	
-	-- Here we will trigger the Degenerate Guy's dice roll and give Sausages/Stats to everyone.
-	
-	-- Start Intermission
 	print("⏳ Intermission: " .. INTERMISSION_TIME .. " seconds...")
 	task.wait(INTERMISSION_TIME)
 	WaveManager.StartWave()
 end
 
--- [[ ARENA INITIALIZATION ]]
 function WaveManager.InitializeArena()
-	-- Wait for at least one player to fully load into the Arena before starting
 	if #Players:GetPlayers() == 0 then
 		Players.PlayerAdded:Wait()
 	end
 	
-	print("[WaveManager] Players detected. Booting Arena Protocol...")
-	task.wait(5) -- Give players 5 seconds to load their weapons/UI
+	print("[WaveManager] Booting Arena Protocol...")
+	
+	-- Initialize the Object Pool with the dummy rig we placed in ReplicatedStorage
+	local template = ReplicatedStorage:WaitForChild("ObesityMonster_Template") :: Model
+	MonsterPool = PartCache.new(template, MAX_ACTIVE_MONSTERS, Workspace)
+	
+	-- Create a flat greyblock floor for testing if one doesn't exist
+	if not Workspace:FindFirstChild("ArenaFloor") then
+		local floor = Instance.new("Part")
+		floor.Name = "ArenaFloor"
+		floor.Size = Vector3.new(200, 1, 200)
+		floor.Position = Vector3.new(0, -0.5, 0)
+		floor.Anchored = true
+		floor.BrickColor = BrickColor.new("Medium stone grey")
+		floor.Parent = Workspace
+	end
+	
+	task.wait(5)
 	WaveManager.StartWave()
 end
 
--- Only auto-start if we are actually in the Arena (Not the Hub)
--- We check this by seeing if the script is running in a reserved server or if we are testing locally.
 if game.PrivateServerId ~= "" or RunService:IsStudio() then
 	task.spawn(WaveManager.InitializeArena)
 end
