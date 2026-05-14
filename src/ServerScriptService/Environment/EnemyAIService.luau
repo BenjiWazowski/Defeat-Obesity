@@ -4,14 +4,13 @@ local Players = game:GetService("Players")
 
 local EnemyAIService = {}
 
--- Define the AI parameters (High HP slow mob vs Fast mob)
+-- Define the AI parameters
 local PathingParams = {
 	AgentRadius = 2,
 	AgentHeight = 5,
 	AgentCanJump = true,
 }
 
--- Helper function to find the closest living player
 local function GetClosestPlayer(monsterPosition: Vector3): Model?
 	local closestPlayer: Model? = nil
 	local shortestDistance = math.huge
@@ -33,23 +32,33 @@ local function GetClosestPlayer(monsterPosition: Vector3): Model?
 	return closestPlayer
 end
 
--- The Core AI Loop
 function EnemyAIService.StartHunting(monsterModel: Model)
 	local humanoid = monsterModel:FindFirstChildWhichIsA("Humanoid")
 	local rootPart = monsterModel:FindFirstChild("HumanoidRootPart") :: BasePart
 
+	-- DIAGNOSTIC PROBE: If the core components are missing, dump the anatomy to the console.
 	if not humanoid or not rootPart then
-		warn("[EnemyAI] Monster missing Humanoid or RootPart!")
+		warn("❌ [EnemyAI] CRITICAL FAILURE: Monster missing Humanoid or RootPart!")
+		warn("--> Target Object Name: " .. tostring(monsterModel.Name))
+		warn("--> Target Object Class: " .. tostring(monsterModel.ClassName))
+		warn("--> Contents found inside this object:")
+		
+		local children = monsterModel:GetChildren()
+		if #children == 0 then
+			warn("    [EMPTY] This object has absolutely nothing inside it.")
+		else
+			for _, child in ipairs(children) do
+				warn("    - " .. child.Name .. " (" .. child.ClassName .. ")")
+			end
+		end
 		return
 	end
 
 	local path = PathfindingService:CreatePath(PathingParams)
 	local hunting = true
 
-	-- Stop hunting if the monster dies
 	humanoid.Died:Connect(function()
 		hunting = false
-		-- The WaveManager will handle returning it to the PartCache
 	end)
 
 	task.spawn(function()
@@ -64,21 +73,16 @@ function EnemyAIService.StartHunting(monsterModel: Model)
 				if success and path.Status == Enum.PathStatus.Success then
 					local waypoints = path:GetWaypoints()
 					
-					-- Skip the first waypoint (current position) and move to the second
 					if waypoints[2] then
 						humanoid:MoveTo(waypoints[2].Position)
-						
-						-- Jump if the waypoint requires it
 						if waypoints[2].Action == Enum.PathWaypointAction.Jump then
 							humanoid.Jump = true
 						end
 					end
 				else
-					-- If pathing fails (no valid path), just walk straight towards them as a fallback
 					humanoid:MoveTo(target.PrimaryPart.Position)
 				end
 			end
-			-- Recalculate the path every 0.2 seconds to track moving players
 			task.wait(0.2)
 		end
 	end)
