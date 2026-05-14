@@ -7,7 +7,7 @@ local MatchmakingService = {}
 
 -- [[ CONFIGURATION ]]
 -- WARNING: You MUST replace this ID with the actual Place ID of your Arena
-local ARENA_PLACE_ID = 0000000000 
+local ARENA_PLACE_ID = 125170709894675 
 local REQUIRED_PLAYERS = 1
 local MAX_PLAYERS = 4
 local COUNTDOWN_TIME = 15
