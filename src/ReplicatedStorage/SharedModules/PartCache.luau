@@ -23,8 +23,8 @@ function PartCache.new(template: Model, capacity: number, cacheParent: Instance?
 	self.Available = {}
 	self.InUse = {}
 
-	-- The "Graveyard": We park inactive models deep in the void to freeze their physics
-	self.FarAway = CFrame.new(0, -50000, 0)
+	-- THE FIX: The "Graveyard" is now safely high in the sky, well above the FallenPartsDestroyHeight limit.
+	self.FarAway = CFrame.new(0, 10000, 0)
 
 	print("[PartCache] Initializing memory pool with capacity: " .. capacity)
 
@@ -33,6 +33,12 @@ function PartCache.new(template: Model, capacity: number, cacheParent: Instance?
 		local clone = template:Clone()
 		clone.Name = template.Name .. "_Cached_" .. i
 		clone.Parent = self.CacheParent
+		
+		-- THE FIX: Anchor the core part so the cached models do not fall out of the sky
+		local root = clone:FindFirstChild("HumanoidRootPart") :: BasePart
+		if root then
+			root.Anchored = true 
+		end
 		
 		-- Immediately send to the Graveyard
 		clone:PivotTo(self.FarAway)
@@ -56,6 +62,12 @@ function PartCache:GetPart(spawnCFrame: CFrame): Model
 	part:PivotTo(spawnCFrame)
 	self.InUse[part] = true
 	
+	-- THE FIX: Unanchor the core part so the AI can physically walk towards the player
+	local root = part:FindFirstChild("HumanoidRootPart") :: BasePart
+	if root then
+		root.Anchored = false 
+	end
+	
 	-- If it's a humanoid monster, ensure its health is reset upon waking up
 	local humanoid = part:FindFirstChildWhichIsA("Humanoid")
 	if humanoid then
@@ -70,6 +82,12 @@ function PartCache:ReturnPart(part: Model)
 	
 	self.InUse[part] = nil
 	table.insert(self.Available, part)
+	
+	-- THE FIX: Re-anchor the body so it freezes mid-air when sent back to the Graveyard
+	local root = part:FindFirstChild("HumanoidRootPart") :: BasePart
+	if root then
+		root.Anchored = true 
+	end
 	
 	-- Send back to the Graveyard, effectively "killing" it without destroying the memory
 	part:PivotTo(self.FarAway)
