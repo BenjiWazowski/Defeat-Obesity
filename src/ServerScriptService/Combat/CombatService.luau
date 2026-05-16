@@ -1,11 +1,10 @@
 --!strict
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
 local CombatService = {}
 
--- [[ NETWORK INITIALIZATION ]]
--- We dynamically create the RemoteEvent folder on boot so Rojo doesn't delete it
 local NetworkEvents = ReplicatedStorage:FindFirstChild("NetworkEvents")
 if not NetworkEvents then
 	NetworkEvents = Instance.new("Folder")
@@ -13,49 +12,54 @@ if not NetworkEvents then
 	NetworkEvents.Parent = ReplicatedStorage
 end
 
-local MeleeHitEvent = Instance.new("RemoteEvent")
-MeleeHitEvent.Name = "MeleeHitEvent"
-MeleeHitEvent.Parent = NetworkEvents
+-- Update Event Name
+local MeleeSwingEvent = Instance.new("RemoteEvent")
+MeleeSwingEvent.Name = "MeleeSwingEvent"
+MeleeSwingEvent.Parent = NetworkEvents
 
--- [[ COMBAT CONFIGURATION ]]
-local MAX_MELEE_RANGE = 12 -- The anti-cheat distance limit (Studs)
 local GREYBOX_DAMAGE = 35
-
--- Import DataService to award Sausages
 local DataService = require(script.Parent.Parent.Core:WaitForChild("DataService"))
 
--- [[ THE GROUND TRUTH VALIDATOR ]]
-MeleeHitEvent.OnServerEvent:Connect(function(player: Player, targetModel: any)
-	-- 1. Validate the target exists and is a character
-	if not targetModel or typeof(targetModel) ~= "Instance" then return end
-	
-	local monsterRoot = targetModel:FindFirstChild("HumanoidRootPart") :: BasePart
-	local monsterHumanoid = targetModel:FindFirstChild("Humanoid") :: Humanoid
-	if not monsterRoot or not monsterHumanoid or monsterHumanoid.Health <= 0 then return end
-	
-	-- 2. Validate the player exists and is alive
+MeleeSwingEvent.OnServerEvent:Connect(function(player: Player)
 	local char = player.Character
 	local playerRoot = char and char:FindFirstChild("HumanoidRootPart") :: BasePart
 	if not playerRoot then return end
 	
-	-- 3. SANITY CHECK: Calculate exact physical distance
-	local distance = (playerRoot.Position - monsterRoot.Position).Magnitude
+	-- 1. DEFINE THE HITBOX
+	local hitboxSize = Vector3.new(5, 5, 5) -- A 5x5x5 invisible box
+	-- Project the box exactly 3 studs in front of the player's facing direction
+	local hitboxCFrame = playerRoot.CFrame * CFrame.new(0, 0, -3) 
 	
-	if distance <= MAX_MELEE_RANGE then
-		-- VALID HIT: Apply damage
-		monsterHumanoid:TakeDamage(GREYBOX_DAMAGE)
-		
-		-- Check if this specific hit killed the monster
-		if monsterHumanoid.Health <= 0 then
-			local profile = DataService.GetProfile(player)
-			if profile then
-				profile.Data.Sausages += 1
-				print("🥩 " .. player.Name .. " looted a Sausage! Total: " .. profile.Data.Sausages)
+	-- 2. CONFIGURE OVERLAP PARAMS
+	local overlapParams = OverlapParams.new()
+	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
+	overlapParams.FilterDescendantsInstances = {char} -- Don't hit yourself
+	
+	-- 3. SCAN FOR TARGETS
+	local hitParts = Workspace:GetPartBoundsInBox(hitboxCFrame, hitboxSize, overlapParams)
+	
+	-- We use a dictionary to ensure we don't damage the same monster twice 
+	-- (e.g. if the box touches their left arm AND right arm)
+	local monstersHit = {}
+	
+	for _, part in ipairs(hitParts) do
+		local enemyModel = part:FindFirstAncestorWhichIsA("Model")
+		if enemyModel and not monstersHit[enemyModel] then
+			local monsterHumanoid = enemyModel:FindFirstChild("Humanoid") :: Humanoid
+			
+			if monsterHumanoid and monsterHumanoid.Health > 0 then
+				monstersHit[enemyModel] = true
+				monsterHumanoid:TakeDamage(GREYBOX_DAMAGE)
+				
+				if monsterHumanoid.Health <= 0 then
+					local profile = DataService.GetProfile(player)
+					if profile then
+						profile.Data.Sausages += 1
+						print("🥩 " .. player.Name .. " looted a Sausage! Total: " .. profile.Data.Sausages)
+					end
+				end
 			end
 		end
-	else
-		-- INVALID HIT: Player is too far away. Ignore the hit.
-		-- warn("[Anti-Cheat] " .. player.Name .. " attempted to hit a monster from " .. math.floor(distance) .. " studs away!")
 	end
 end)
 
