@@ -2,7 +2,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local StatManager = require(script.Parent.Parent.Core:WaitForChild("StatManager"))
 
 local CombatService = {}
 
@@ -13,13 +12,14 @@ if not NetworkEvents then
 	NetworkEvents.Parent = ReplicatedStorage
 end
 
--- Update Event Name
 local MeleeSwingEvent = Instance.new("RemoteEvent")
 MeleeSwingEvent.Name = "MeleeSwingEvent"
 MeleeSwingEvent.Parent = NetworkEvents
 
-local GREYBOX_DAMAGE = 35
 local DataService = require(script.Parent.Parent.Core:WaitForChild("DataService"))
+local StatManager = require(script.Parent.Parent.Core:WaitForChild("StatManager"))
+
+local PlayerCooldowns = {}
 
 MeleeSwingEvent.OnServerEvent:Connect(function(player: Player)
 	local char = player.Character
@@ -29,8 +29,14 @@ MeleeSwingEvent.OnServerEvent:Connect(function(player: Player)
 	-- 1. FETCH DYNAMIC STATS
 	local activeStats = StatManager.GetActiveStats(player)
 	
-	-- 2. DEFINE THE HITBOX DYNAMICALLY
-	-- We use the player's calculated MeleeRange to size the box!
+	-- 2. ANTI-CHEAT: Cooldown enforcement
+	local lastSwing = PlayerCooldowns[player.UserId] or 0
+	if os.clock() - lastSwing < activeStats.MeleeSpeed then
+		return -- Silently drop the exploiter's request
+	end
+	PlayerCooldowns[player.UserId] = os.clock()
+	
+	-- 3. DEFINE THE HITBOX DYNAMICALLY
 	local range = activeStats.MeleeRange
 	local hitboxSize = Vector3.new(range, 5, range) 
 	local hitboxCFrame = playerRoot.CFrame * CFrame.new(0, 0, -(range/2 + 1)) 
@@ -50,14 +56,14 @@ MeleeSwingEvent.OnServerEvent:Connect(function(player: Player)
 			if monsterHumanoid and monsterHumanoid.Health > 0 then
 				monstersHit[enemyModel] = true
 				
-				-- 3. APPLY DYNAMIC DAMAGE
+				-- 4. APPLY DYNAMIC DAMAGE
 				monsterHumanoid:TakeDamage(activeStats.MeleeDamage)
 				
 				if monsterHumanoid.Health <= 0 then
 					local profile = DataService.GetProfile(player)
 					if profile then
 						profile.Data.Sausages += 1
-						-- Health pack drop logic will go here next
+						print("🥩 " .. player.Name .. " looted a Sausage! Total: " .. profile.Data.Sausages)
 					end
 				end
 			end
