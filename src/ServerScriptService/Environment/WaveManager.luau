@@ -3,7 +3,7 @@ local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
+local StatManager = require(script.Parent.Parent.Core:WaitForChild("StatManager"))
 local WaveManager = {}
 
 -- IMPORT THE SERVICES
@@ -85,6 +85,12 @@ function WaveManager.StartWave()
 	TotalWaveQuota = math.floor(BASE_MONSTERS * (WAVE_MULTIPLIER ^ (CurrentWave - 1)))
 	MonstersSpawned = 0
 	ActiveMonsters = 0
+
+	-- Recalculate and inject player stats for the new wave
+for _, player in ipairs(Players:GetPlayers()) do
+    StatManager.CalculateStats(player, CurrentWave)
+    StatManager.ApplyPhysicalStats(player)
+end
 	
 	print("\n🚨 WAVE " .. CurrentWave .. " STARTED 🚨 Quota: " .. TotalWaveQuota)
 	

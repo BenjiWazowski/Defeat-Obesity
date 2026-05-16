@@ -19,5 +19,7 @@ local WaveManager = require(script.Parent.Environment:WaitForChild("WaveManager"
 
 -- IGNITE THE COMBAT ENGINE
 local CombatService = require(script.Parent.Combat:WaitForChild("CombatService"))
+-- START THE STAT MANAGER
+local StatManager = require(script.Parent.Core:WaitForChild("StatManager"))
 
 print("[Bootstrapper] All systems green. Server is live.")

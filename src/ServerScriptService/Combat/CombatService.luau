@@ -2,6 +2,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local StatManager = require(script.Parent.Parent.Core:WaitForChild("StatManager"))
 
 local CombatService = {}
 
@@ -25,21 +26,20 @@ MeleeSwingEvent.OnServerEvent:Connect(function(player: Player)
 	local playerRoot = char and char:FindFirstChild("HumanoidRootPart") :: BasePart
 	if not playerRoot then return end
 	
-	-- 1. DEFINE THE HITBOX
-	local hitboxSize = Vector3.new(5, 5, 5) -- A 5x5x5 invisible box
-	-- Project the box exactly 3 studs in front of the player's facing direction
-	local hitboxCFrame = playerRoot.CFrame * CFrame.new(0, 0, -3) 
+	-- 1. FETCH DYNAMIC STATS
+	local activeStats = StatManager.GetActiveStats(player)
 	
-	-- 2. CONFIGURE OVERLAP PARAMS
+	-- 2. DEFINE THE HITBOX DYNAMICALLY
+	-- We use the player's calculated MeleeRange to size the box!
+	local range = activeStats.MeleeRange
+	local hitboxSize = Vector3.new(range, 5, range) 
+	local hitboxCFrame = playerRoot.CFrame * CFrame.new(0, 0, -(range/2 + 1)) 
+	
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
-	overlapParams.FilterDescendantsInstances = {char} -- Don't hit yourself
+	overlapParams.FilterDescendantsInstances = {char} 
 	
-	-- 3. SCAN FOR TARGETS
 	local hitParts = Workspace:GetPartBoundsInBox(hitboxCFrame, hitboxSize, overlapParams)
-	
-	-- We use a dictionary to ensure we don't damage the same monster twice 
-	-- (e.g. if the box touches their left arm AND right arm)
 	local monstersHit = {}
 	
 	for _, part in ipairs(hitParts) do
@@ -49,13 +49,15 @@ MeleeSwingEvent.OnServerEvent:Connect(function(player: Player)
 			
 			if monsterHumanoid and monsterHumanoid.Health > 0 then
 				monstersHit[enemyModel] = true
-				monsterHumanoid:TakeDamage(GREYBOX_DAMAGE)
+				
+				-- 3. APPLY DYNAMIC DAMAGE
+				monsterHumanoid:TakeDamage(activeStats.MeleeDamage)
 				
 				if monsterHumanoid.Health <= 0 then
 					local profile = DataService.GetProfile(player)
 					if profile then
 						profile.Data.Sausages += 1
-						print("🥩 " .. player.Name .. " looted a Sausage! Total: " .. profile.Data.Sausages)
+						-- Health pack drop logic will go here next
 					end
 				end
 			end
