@@ -63,7 +63,10 @@ MeleeSwingEvent.OnServerEvent:Connect(function(player: Player)
 					local profile = DataService.GetProfile(player)
 					if profile then
 						profile.Data.Sausages += 1
-						print("🥩 " .. player.Name .. " looted a Sausage! Total: " .. profile.Data.Sausages)
+						print("🥩 " .. player.Name .. " Swallowed a Glizzy! Total: " .. profile.Data.Sausages)
+
+						-- BROADCAST TO UI
+						player:SetAttribute("Sausages", profile.Data.Sausages)
 					end
 				end
 			end

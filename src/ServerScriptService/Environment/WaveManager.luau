@@ -83,6 +83,9 @@ function WaveManager.StartWave()
 	ActiveMonsters = 0
 	
 	print("\n🚨 WAVE " .. CurrentWave .. " STARTED 🚨 Quota: " .. TotalWaveQuota)
+
+	-- BROADCAST TO UI
+	Workspace:SetAttribute("CurrentWave", CurrentWave)
 	
 	-- Recalculate and inject player stats for the new wave
 	for _, player in ipairs(Players:GetPlayers()) do
