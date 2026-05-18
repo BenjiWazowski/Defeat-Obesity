@@ -1,4 +1,5 @@
 --!strict
+local PhysicsService = game:GetService("PhysicsService")
 local PartCache = {}
 PartCache.__index = PartCache
 
@@ -8,10 +9,15 @@ export type Cache = {
 	Available: {Model},
 	InUse: {[Model]: boolean},
 	FarAway: CFrame,
-	
 	GetPart: (self: Cache, spawnCFrame: CFrame) -> Model,
 	ReturnPart: (self: Cache, part: Model) -> ()
 }
+
+-- [[ COLLISION GROUP SETUP ]]
+pcall(function()
+	PhysicsService:RegisterCollisionGroup("MobSwarm")
+	PhysicsService:CollisionGroupSetCollidable("MobSwarm", "MobSwarm", false)
+end)
 
 function PartCache.new(template: Model, capacity: number, cacheParent: Instance?): Cache
 	local self = setmetatable({}, PartCache) :: any
@@ -28,6 +34,13 @@ function PartCache.new(template: Model, capacity: number, cacheParent: Instance?
 		clone.Name = template.Name .. "_Cached_" .. i
 		clone.Parent = self.CacheParent
 		
+		-- Inject Collision Group so mobs don't stack on each other
+		for _, desc in ipairs(clone:GetDescendants()) do
+			if desc:IsA("BasePart") then
+				desc.CollisionGroup = "MobSwarm"
+			end
+		end
+		
 		local root = clone:FindFirstChild("HumanoidRootPart") :: BasePart
 		if root then root.Anchored = true end
 		
@@ -40,7 +53,6 @@ end
 
 function PartCache:GetPart(spawnCFrame: CFrame): Model
 	local part = table.remove(self.Available)
-	
 	if not part then
 		part = self.Template:Clone()
 		part.Parent = self.CacheParent
@@ -58,14 +70,15 @@ end
 function PartCache:ReturnPart(part: Model)
 	if not part then return end
 	self.InUse[part] = nil
-	
-	-- THE FIX: Destroy the dead corpse because Roblox Humanoids cannot be resurrected.
 	part:Destroy()
 	
-	-- Clone a brand new, healthy body to replace it in the pool.
 	local freshClone = self.Template:Clone()
 	freshClone.Name = self.Template.Name .. "_Cached_" .. tostring(math.random(1000, 9999))
 	freshClone.Parent = self.CacheParent
+	
+	for _, desc in ipairs(freshClone:GetDescendants()) do
+		if desc:IsA("BasePart") then desc.CollisionGroup = "MobSwarm" end
+	end
 	
 	local root = freshClone:FindFirstChild("HumanoidRootPart") :: BasePart
 	if root then root.Anchored = true end

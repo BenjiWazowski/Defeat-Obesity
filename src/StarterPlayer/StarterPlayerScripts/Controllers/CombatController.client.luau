@@ -17,7 +17,7 @@ local canAttack = true
 
 -- [[ ANIMATION SETUP ]]
 local swingAnimation = Instance.new("Animation")
-swingAnimation.AnimationId = "rbxassetid://0000000" 
+swingAnimation.AnimationId = "rbxassetid://507777451" 
 local loadedAnim: AnimationTrack? = nil
 
 mouse.Button1Down:Connect(function()
