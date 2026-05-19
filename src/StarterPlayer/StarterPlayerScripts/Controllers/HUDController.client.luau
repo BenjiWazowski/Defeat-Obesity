@@ -113,4 +113,22 @@ end
 if player.Character then HookHealth(player.Character) end
 player.CharacterAdded:Connect(HookHealth)
 
+-- Ammo Counter Logic
+local ammoLabel = mainHUD:WaitForChild("AmmoText") :: TextLabel
+
+local function UpdateAmmoUI()
+	local currentAmmo = player:GetAttribute("CurrentAmmo") or 0
+	local maxAmmo = player:GetAttribute("MaxAmmo") or 0
+	
+	if maxAmmo == 0 then
+		ammoLabel.Text = "" -- Hide text if holding melee/nothing
+	else
+		ammoLabel.Text = currentAmmo .. " / " .. maxAmmo
+	end
+end
+
+player:GetAttributeChangedSignal("CurrentAmmo"):Connect(UpdateAmmoUI)
+player:GetAttributeChangedSignal("MaxAmmo"):Connect(UpdateAmmoUI)
+UpdateAmmoUI()
+
 print("🖥️ [HUDController] Visual Interface Booted & Connected.")

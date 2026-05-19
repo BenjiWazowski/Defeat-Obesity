@@ -15,30 +15,70 @@ local ShootEvent = Instance.new("RemoteEvent")
 ShootEvent.Name = "ShootEvent"
 ShootEvent.Parent = NetworkEvents
 
--- Anti-cheat tracking
-local PlayerCooldowns = {}
+local ReloadEvent = Instance.new("RemoteEvent")
+ReloadEvent.Name = "ReloadEvent"
+ReloadEvent.Parent = NetworkEvents
 
-ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, origin: Vector3, direction: Vector3)
-	local config = WeaponConfig[weaponName]
-	if not config then return end -- Invalid weapon
+local PlayerCooldowns = {}
+local ReloadingPlayers = {} -- Tracks who is currently reloading so they can't spam it
+
+-- [[ 1. RELOAD LOGIC ]]
+ReloadEvent.OnServerEvent:Connect(function(player: Player, weaponName: string)
+	local char = player.Character
+	if not char or ReloadingPlayers[player.UserId] then return end
 	
-	-- 1. ANTI-CHEAT: Check Fire Rate
-	local lastShot = PlayerCooldowns[player.UserId] or 0
-	if os.clock() - lastShot < config.FireRate then
-		return -- Silently drop exploiter's request
+	local equippedTool = char:FindFirstChild(weaponName)
+	local config = WeaponConfig[weaponName]
+	if not equippedTool or not config then return end
+	
+	local activeStats = StatManager.GetActiveStats(player)
+	
+	ReloadingPlayers[player.UserId] = true
+	-- Simulate reload time (modified by their ReloadSpeed stat)
+	task.wait(activeStats.ReloadSpeed)
+	
+	-- Refill the tool's ammo attribute
+	if equippedTool.Parent == char then -- Ensure they are still holding it
+		equippedTool:SetAttribute("CurrentAmmo", activeStats.AmmoCapacity)
 	end
+	ReloadingPlayers[player.UserId] = nil
+end)
+
+-- [[ 2. SHOOTING LOGIC ]]
+ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, origin: Vector3, direction: Vector3)
+	local char = player.Character
+	if not char or ReloadingPlayers[player.UserId] then return end
+	
+	local equippedTool = char:FindFirstChild(weaponName)
+	local config = WeaponConfig[weaponName]
+	if not equippedTool or not config then return end
+	
+	local activeStats = StatManager.GetActiveStats(player)
+	
+	-- AMMO CHECK
+	local currentAmmo = equippedTool:GetAttribute("CurrentAmmo")
+	if currentAmmo == nil then 
+		currentAmmo = activeStats.AmmoCapacity 
+		equippedTool:SetAttribute("CurrentAmmo", currentAmmo)
+	end
+	
+	if currentAmmo <= 0 then return end -- Empty clip
+	
+	-- FIRE RATE ANTI-CHEAT
+	local lastShot = PlayerCooldowns[player.UserId] or 0
+	if os.clock() - lastShot < config.FireRate then return end
+	
 	PlayerCooldowns[player.UserId] = os.clock()
 	
-	-- Fetch the player's dynamic stats to boost gun damage
-	local activeStats = StatManager.GetActiveStats(player)
-	local totalDamage = config.Damage + (activeStats.GunDamage * 0.5) -- Gun damage stat adds 50% of its value to base gun damage
+	-- Decrement Ammo
+	equippedTool:SetAttribute("CurrentAmmo", currentAmmo - 1)
 	
-	-- 2. SERVER RAYCAST (Ground Truth)
+	local totalDamage = config.Damage + (activeStats.GunDamage * 0.5)
+	
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-	raycastParams.FilterDescendantsInstances = {player.Character}
+	raycastParams.FilterDescendantsInstances = {char}
 	
-	-- Shoot the ray exactly 300 studs forward
 	local raycastResult = Workspace:Raycast(origin, direction * 300, raycastParams)
 	
 	if raycastResult and raycastResult.Instance then
@@ -49,15 +89,12 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 			local monsterHumanoid = enemyModel:FindFirstChild("Humanoid") :: Humanoid
 			if monsterHumanoid and monsterHumanoid.Health > 0 then
 				
-				-- 3. HEADSHOT MULTIPLIER
 				if hitPart.Name == "Head" then
 					totalDamage = totalDamage * config.HeadshotMultiplier
-					-- print("🎯 HEADSHOT! Dealt " .. totalDamage .. " damage!")
 				end
 				
 				monsterHumanoid:TakeDamage(totalDamage)
 				
-				-- 4. KILL / LOOT CHECK
 				if monsterHumanoid.Health <= 0 then
 					local profile = DataService.GetProfile(player)
 					if profile then
