@@ -1,6 +1,7 @@
 --!strict
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -8,10 +9,60 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- Grab the UI you built in Studio (synced via Rojo)
 local mainHUD = playerGui:WaitForChild("MainHUD")
 
--- Hook into the specific labels
+-- Hook into the base labels
 local waveLabel = mainHUD:WaitForChild("WaveText") :: TextLabel
 local sausageLabel = mainHUD:WaitForChild("SausageText") :: TextLabel
 local healthBar = mainHUD:WaitForChild("HealthText") :: TextLabel
+local skillsText = mainHUD:WaitForChild("SkillsText") :: TextLabel
+
+-- Hook into the Stats Window & the 9 Stat Labels
+local statsWindow = mainHUD:WaitForChild("StatsWindow") :: Frame
+local statLabels = {
+	Health = statsWindow:WaitForChild("MaxHPText") :: TextLabel,
+	MeleeDamage = statsWindow:WaitForChild("MeleeDamageText") :: TextLabel,
+	GunDamage = statsWindow:WaitForChild("GunDamageText") :: TextLabel,
+	MovementSpeed = statsWindow:WaitForChild("MovementSpeedText") :: TextLabel,
+	MeleeRange = statsWindow:WaitForChild("MeleeRangeText") :: TextLabel,
+	AmmoCapacity = statsWindow:WaitForChild("ClipSizeText") :: TextLabel,
+	Luck = statsWindow:WaitForChild("LuckText") :: TextLabel,
+	MeleeSpeed = statsWindow:WaitForChild("MeleeSpeedText") :: TextLabel,
+	ReloadSpeed = statsWindow:WaitForChild("ReloadSpeedText") :: TextLabel,
+}
+
+-- [[ UI TOGGLE & UPDATE LOGIC ]]
+local function UpdateStatsWindow()
+	-- The \n creates a new line. string.format("%.2f") limits decimals to 2 places.
+	statLabels.Health.Text = "Max HP\n" .. math.floor(player:GetAttribute("Stat_Health") or 0)
+	statLabels.MeleeDamage.Text = "Melee Damage\n" .. math.floor(player:GetAttribute("Stat_MeleeDamage") or 0)
+	statLabels.GunDamage.Text = "Gun Damage\n" .. math.floor(player:GetAttribute("Stat_GunDamage") or 0)
+	statLabels.MovementSpeed.Text = "Movement Speed\n" .. string.format("%.1f", player:GetAttribute("Stat_MovementSpeed") or 0)
+	statLabels.MeleeRange.Text = "Melee Range\n" .. string.format("%.1f", player:GetAttribute("Stat_MeleeRange") or 0)
+	statLabels.AmmoCapacity.Text = "Clip Size\n" .. math.floor(player:GetAttribute("Stat_AmmoCapacity") or 0)
+	statLabels.Luck.Text = "Luck\n" .. string.format("%.2f", player:GetAttribute("Stat_Luck") or 0)
+	statLabels.MeleeSpeed.Text = "Melee Speed\n" .. string.format("%.2fs", player:GetAttribute("Stat_MeleeSpeed") or 0)
+	statLabels.ReloadSpeed.Text = "Reload Speed\n" .. string.format("%.2fs", player:GetAttribute("Stat_ReloadSpeed") or 0)
+end
+
+local function ToggleStatsWindow()
+	statsWindow.Visible = not statsWindow.Visible
+	if statsWindow.Visible then
+		UpdateStatsWindow()
+	end
+end
+
+-- Input Listeners for the Stats Window
+skillsText.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		ToggleStatsWindow()
+	end
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end 
+	if input.KeyCode == Enum.KeyCode.Z then
+		ToggleStatsWindow()
+	end
+end)
 
 -- [[ EVENT LISTENERS ]]
 Workspace:GetAttributeChangedSignal("CurrentWave"):Connect(function()
