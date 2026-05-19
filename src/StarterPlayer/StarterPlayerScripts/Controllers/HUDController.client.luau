@@ -12,8 +12,10 @@ local mainHUD = playerGui:WaitForChild("MainHUD")
 local waveLabel = mainHUD:WaitForChild("WaveCounter") :: TextLabel
 local countdownLabel = mainHUD:WaitForChild("CountdownText") :: TextLabel
 local sausageLabel = mainHUD:WaitForChild("SausageText") :: TextLabel
-local healthBar = mainHUD:WaitForChild("HealthText") :: TextLabel
 local skillsText = mainHUD:WaitForChild("SkillsText") :: TextLabel
+local healthContainer = mainHUD:WaitForChild("HealthBarContainer") :: Frame
+local healthFill = healthContainer:WaitForChild("HealthFill") :: Frame
+local healthBar = healthContainer:WaitForChild("HealthText") :: TextLabel
 
 -- Hook into the Stats Window & the 9 Stat Labels
 local statsWindow = mainHUD:WaitForChild("StatsWindow") :: Frame
@@ -28,6 +30,8 @@ local statLabels = {
 	MeleeSpeed = statsWindow:WaitForChild("MeleeSpeedText") :: TextLabel,
 	ReloadSpeed = statsWindow:WaitForChild("ReloadSpeedText") :: TextLabel,
 }
+
+game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
 
 -- [[ UI TOGGLE & UPDATE LOGIC ]]
 local function UpdateStatsWindow()
@@ -87,13 +91,23 @@ player:GetAttributeChangedSignal("Sausages"):Connect(function()
 	sausageLabel.Text = "" .. tostring(sausages)
 end)
 
+-- Update HookHealth to this:
 local function HookHealth(character: Model)
 	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
-	healthBar.Text = "HP: " .. math.floor(humanoid.Health) .. " / " .. math.floor(humanoid.MaxHealth)
 	
-	humanoid.HealthChanged:Connect(function(health)
-		healthBar.Text = "HP: " .. math.floor(health) .. " / " .. math.floor(humanoid.MaxHealth)
-	end)
+	local function UpdateHealthDisplay()
+		local currentHealth = math.floor(humanoid.Health)
+		local maxHealth = math.floor(humanoid.MaxHealth)
+		
+		healthBar.Text = "HP: " .. currentHealth .. " / " .. maxHealth
+		
+		-- Shrinks the X Scale based on percentage (0.0 to 1.0)
+		local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+		healthFill.Size = UDim2.new(healthPercent, 0, 1, 0)
+	end
+	
+	UpdateHealthDisplay()
+	humanoid.HealthChanged:Connect(UpdateHealthDisplay)
 end
 
 if player.Character then HookHealth(player.Character) end
