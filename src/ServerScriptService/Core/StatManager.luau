@@ -64,6 +64,7 @@ function StatManager.GetActiveStats(player: Player)
 	return PlayerStatCache[player.UserId]
 end
 
+-- [[ PHYSICAL INJECTION ]]
 function StatManager.ApplyPhysicalStats(player: Player)
 	local char = player.Character
 	local humanoid = char and char:FindFirstChildWhichIsA("Humanoid")
@@ -71,14 +72,21 @@ function StatManager.ApplyPhysicalStats(player: Player)
 	
 	local stats = StatManager.GetActiveStats(player)
 	
+	-- Set Roblox Engine Stats
 	humanoid.MaxHealth = stats.Health
-	humanoid.Health = humanoid.MaxHealth 
+	humanoid.Health = humanoid.MaxHealth
 	humanoid.WalkSpeed = stats.MovementSpeed
 	
-	-- Broadcast the MeleeSpeed to the Client for cooldowns
+	-- BROADCAST ALL STATS TO THE CLIENT UI
+	for statName, statValue in pairs(stats) do
+		-- We use a "Stat_" prefix to keep things organized
+		player:SetAttribute("Stat_" .. statName, statValue)
+	end
+	
+	-- Legacy attribute for the combat cooldown
 	player:SetAttribute("MeleeSpeed", stats.MeleeSpeed)
 	
-	print("💪 [StatManager] Physical stats injected for " .. player.Name .. " (Max HP: " .. math.floor(stats.Health) .. ", Speed: " .. string.format("%.1f", stats.MovementSpeed) .. ")")
+	print("💪 [StatManager] Physical stats injected for " .. player.Name)
 end
 
 -- Automatically re-apply stats if the player dies and respawns mid-wave
