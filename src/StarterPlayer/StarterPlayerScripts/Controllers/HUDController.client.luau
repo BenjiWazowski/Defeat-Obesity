@@ -84,7 +84,7 @@ end)
 
 player:GetAttributeChangedSignal("Sausages"):Connect(function()
 	local sausages = player:GetAttribute("Sausages") or 0
-	sausageLabel.Text = "🥩 " .. tostring(sausages)
+	sausageLabel.Text = "" .. tostring(sausages)
 end)
 
 local function HookHealth(character: Model)
