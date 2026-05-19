@@ -81,17 +81,18 @@ function WaveManager.StartWave()
 	TotalWaveQuota = math.floor(BASE_MONSTERS * (WAVE_MULTIPLIER ^ (CurrentWave - 1)))
 	MonstersSpawned = 0
 	ActiveMonsters = 0
-	
-	print("\n🚨 WAVE " .. CurrentWave .. " STARTED 🚨 Quota: " .. TotalWaveQuota)
 
-	-- BROADCAST TO UI
-	Workspace:SetAttribute("CurrentWave", CurrentWave)
-	
+	-- Tell the UI to hide the countdown
+	Workspace:SetAttribute("WaveState", "Active")
+
 	-- Recalculate and inject player stats for the new wave
 	for _, player in ipairs(Players:GetPlayers()) do
 		StatManager.CalculateStats(player, CurrentWave)
 		StatManager.ApplyPhysicalStats(player)
 	end
+	
+	print("\n🚨 WAVE " .. CurrentWave .. " STARTED 🚨 Quota: " .. TotalWaveQuota)
+	Workspace:SetAttribute("CurrentWave", CurrentWave)
 	
 	task.spawn(function()
 		while WaveInProgress do
@@ -104,8 +105,16 @@ end
 function WaveManager.EndWave()
 	WaveInProgress = false
 	print("✅ Wave " .. CurrentWave .. " Cleared!")
-	print("⏳ Intermission: " .. INTERMISSION_TIME .. " seconds...")
-	task.wait(INTERMISSION_TIME)
+	
+	-- Tell the UI to show the countdown
+	Workspace:SetAttribute("WaveState", "Intermission")
+	
+	-- Broadcast the timer every second
+	for i = INTERMISSION_TIME, 1, -1 do
+		Workspace:SetAttribute("IntermissionTime", i)
+		task.wait(1)
+	end
+	
 	WaveManager.StartWave()
 end
 
@@ -129,7 +138,13 @@ function WaveManager.InitializeArena()
 		floor.Parent = Workspace
 	end
 	
-	task.wait(5)
+	-- Initial boot countdown
+	Workspace:SetAttribute("WaveState", "Intermission")
+	for i = 5, 1, -1 do
+		Workspace:SetAttribute("IntermissionTime", i)
+		task.wait(1)
+	end
+	
 	WaveManager.StartWave()
 end
 

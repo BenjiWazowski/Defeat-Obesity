@@ -6,11 +6,11 @@ local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Grab the UI you built in Studio (synced via Rojo)
 local mainHUD = playerGui:WaitForChild("MainHUD")
 
--- Hook into the base labels
-local waveLabel = mainHUD:WaitForChild("WaveText") :: TextLabel
+-- Hook into the base labels (Names MUST match the Studio Explorer exactly)
+local waveLabel = mainHUD:WaitForChild("WaveCounter") :: TextLabel
+local countdownLabel = mainHUD:WaitForChild("CountdownText") :: TextLabel
 local sausageLabel = mainHUD:WaitForChild("SausageText") :: TextLabel
 local healthBar = mainHUD:WaitForChild("HealthText") :: TextLabel
 local skillsText = mainHUD:WaitForChild("SkillsText") :: TextLabel
@@ -31,7 +31,6 @@ local statLabels = {
 
 -- [[ UI TOGGLE & UPDATE LOGIC ]]
 local function UpdateStatsWindow()
-	-- The \n creates a new line. string.format("%.2f") limits decimals to 2 places.
 	statLabels.Health.Text = "Max HP\n" .. math.floor(player:GetAttribute("Stat_Health") or 0)
 	statLabels.MeleeDamage.Text = "Melee Damage\n" .. math.floor(player:GetAttribute("Stat_MeleeDamage") or 0)
 	statLabels.GunDamage.Text = "Gun Damage\n" .. math.floor(player:GetAttribute("Stat_GunDamage") or 0)
@@ -68,6 +67,19 @@ end)
 Workspace:GetAttributeChangedSignal("CurrentWave"):Connect(function()
 	local currentWave = Workspace:GetAttribute("CurrentWave") or 0
 	waveLabel.Text = "WAVE " .. tostring(currentWave)
+end)
+
+-- Countdown Logic
+Workspace:GetAttributeChangedSignal("WaveState"):Connect(function()
+	if Workspace:GetAttribute("WaveState") == "Active" then
+		countdownLabel.Visible = false
+	else
+		countdownLabel.Visible = true
+	end
+end)
+
+Workspace:GetAttributeChangedSignal("IntermissionTime"):Connect(function()
+	countdownLabel.Text = "Starting in " .. tostring(Workspace:GetAttribute("IntermissionTime") or 0)
 end)
 
 player:GetAttributeChangedSignal("Sausages"):Connect(function()
