@@ -15,6 +15,9 @@
     },
     "StarterGui": {
       "$path": "src/StarterPlayer/StarterGui"
+    },
+    "StarterPack": {
+      "$path": "src/StarterPack"
     }
   }
 }
