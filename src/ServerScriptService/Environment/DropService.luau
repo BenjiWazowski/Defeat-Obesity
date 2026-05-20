@@ -44,9 +44,40 @@ local function SpawnPhysicalDrop(position: Vector3, dropData: any)
 	
 	dropPart.Parent = Workspace
 	
+	-- [[ MAGNETIC HOVER LOGIC ]]
+	local MAGNET_RADIUS = 15 -- ~5 blocks pickup radius
+	local MAGNET_SPEED = 0.15 -- How fast it flies to the player
+	
 	task.spawn(function()
+		local lockedTarget = nil
+		
 		while dropPart.Parent do
-			dropPart.CFrame = dropPart.CFrame * CFrame.Angles(0, math.rad(2), 0)
+			if not lockedTarget then
+				-- 1. Hover & Rotate
+				dropPart.CFrame = dropPart.CFrame * CFrame.Angles(0, math.rad(2), 0)
+				
+				-- 2. Scan for players
+				for _, p in ipairs(Players:GetPlayers()) do
+					local char = p.Character
+					local root = char and char:FindFirstChild("HumanoidRootPart")
+					if root then
+						local dist = (root.Position - dropPart.Position).Magnitude
+						if dist <= MAGNET_RADIUS then
+							lockedTarget = root -- Lock on!
+							break
+						end
+					end
+				end
+			else
+				-- 3. Fly to the locked player
+				if lockedTarget.Parent and lockedTarget.Parent:FindFirstChild("Humanoid") and lockedTarget.Parent.Humanoid.Health > 0 then
+					-- Smoothly interpolate the drop's position to the player's core
+					dropPart.CFrame = dropPart.CFrame:Lerp(lockedTarget.CFrame, MAGNET_SPEED)
+				else
+					-- If the player dies or disconnects mid-flight, drop the lock
+					lockedTarget = nil 
+				end
+			end
 			task.wait(0.03)
 		end
 	end)
