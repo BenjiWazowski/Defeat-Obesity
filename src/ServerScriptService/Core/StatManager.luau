@@ -53,6 +53,16 @@ function StatManager.CalculateStats(player: Player, currentWave: number)
 		end
 	end
 	
+	-- 5. INTEGER ENFORCEMENT (Breakpoints)
+	-- We round these down so players don't get fractional bullets or HP
+	if activeStats.Health then
+		activeStats.Health = math.floor(activeStats.Health)
+	end
+	if activeStats.AmmoCapacity then
+		activeStats.AmmoCapacity = math.floor(activeStats.AmmoCapacity)
+	end
+	-- (We intentionally leave Luck as a decimal so it grows smoothly!)
+	
 	PlayerStatCache[player.UserId] = activeStats
 	return activeStats
 end
