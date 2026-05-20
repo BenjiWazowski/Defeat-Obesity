@@ -9,5 +9,6 @@ local WaveManager = require(script.Parent.Environment:WaitForChild("WaveManager"
 local CombatService = require(script.Parent.Combat:WaitForChild("CombatService"))
 local StatManager = require(script.Parent.Core:WaitForChild("StatManager"))
 local WeaponService = require(script.Parent.Combat:WaitForChild("WeaponService"))
+local DropService = require(script.Parent.Environment:WaitForChild("DropService"))
 
 print("[Bootstrapper] All systems green. Server is live.")

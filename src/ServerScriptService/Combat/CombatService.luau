@@ -3,6 +3,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
+local DropService = require(script.Parent.Parent.Environment:WaitForChild("DropService"))
+
 local CombatService = {}
 
 local NetworkEvents = ReplicatedStorage:FindFirstChild("NetworkEvents")
@@ -60,14 +62,16 @@ MeleeSwingEvent.OnServerEvent:Connect(function(player: Player)
 				monsterHumanoid:TakeDamage(activeStats.MeleeDamage)
 				
 				if monsterHumanoid.Health <= 0 then
+					if monsterHumanoid:GetAttribute("IsDead") then return end
+					monsterHumanoid:SetAttribute("IsDead", true)
+
 					local profile = DataService.GetProfile(player)
 					if profile then
 						profile.Data.Sausages += 1
-						print("🥩 " .. player.Name .. " Swallowed a Glizzy! Total: " .. profile.Data.Sausages)
-
-						-- BROADCAST TO UI
 						player:SetAttribute("Sausages", profile.Data.Sausages)
 					end
+
+					DropService.RollForDrop(enemyModel.PrimaryPart.Position, player)
 				end
 			end
 		end

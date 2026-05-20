@@ -9,6 +9,8 @@ local WeaponConfig = require(ReplicatedStorage.GameConfig:WaitForChild("WeaponCo
 local StatManager = require(script.Parent.Parent.Core:WaitForChild("StatManager"))
 local DataService = require(script.Parent.Parent.Core:WaitForChild("DataService"))
 
+local DropService = require(script.Parent.Parent.Environment:WaitForChild("DropService"))
+
 local NetworkEvents = ReplicatedStorage:FindFirstChild("NetworkEvents")
 if not NetworkEvents then
 	NetworkEvents = Instance.new("Folder")
@@ -158,11 +160,19 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 				
 				-- KILL / LOOT CHECK
 				if monsterHumanoid.Health <= 0 then
+					-- DEATH LOCK: Prevent shotgun pellets from counting as 8 kills
+					if monsterHumanoid:GetAttribute("IsDead") then return end
+					monsterHumanoid:SetAttribute("IsDead", true)
+
+					-- Give Sausage
 					local profile = DataService.GetProfile(player)
 					if profile then
 						profile.Data.Sausages += 1
 						player:SetAttribute("Sausages", profile.Data.Sausages)
 					end
+
+					-- Roll for Health/Ammo Drop
+					DropService.RollForDrop(hitPart.Position, player)
 				end
 			end
 		end
