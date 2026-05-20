@@ -161,8 +161,8 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
--- Initialize Tool Ammo Attributes so HUD displays properly on Equip
-player.CharacterAdded:Connect(function(char)
+-- [[ INITIALIZE AMMO ATTRIBUTES ]]
+local function HookGunAttributes(char: Model)
 	char.ChildAdded:Connect(function(child)
 		if child:IsA("Tool") and WeaponConfig[child.Name] then
 			local currentWave = Workspace:GetAttribute("CurrentWave") or 1
@@ -176,4 +176,8 @@ player.CharacterAdded:Connect(function(char)
 			end
 		end
 	end)
-end)
+end
+
+-- Catch the character if they already spawned before the script loaded!
+if player.Character then HookGunAttributes(player.Character) end
+player.CharacterAdded:Connect(HookGunAttributes)

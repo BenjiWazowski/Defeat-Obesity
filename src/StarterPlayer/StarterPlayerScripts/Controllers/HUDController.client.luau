@@ -113,8 +113,9 @@ end
 if player.Character then HookHealth(player.Character) end
 player.CharacterAdded:Connect(HookHealth)
 
--- Ammo Counter Logic
+-- [[ AMMO COUNTER LOGIC ]]
 local ammoLabel = mainHUD:WaitForChild("AmmoText") :: TextLabel
+local WeaponConfig = require(game:GetService("ReplicatedStorage").GameConfig:WaitForChild("WeaponConfig"))
 
 local function UpdateAmmoUI()
 	local currentAmmo = player:GetAttribute("CurrentAmmo") or 0
@@ -126,14 +127,13 @@ local function UpdateAmmoUI()
 	if not tool or not WeaponConfig[tool.Name] then
 		ammoLabel.Text = "" 
 	elseif tool.Name == "Glizzy shooter" then
-		ammoLabel.Text = reserveAmmo -- LMG only shows total pool
+		ammoLabel.Text = tostring(reserveAmmo) -- LMG only shows total pool
 	else
 		ammoLabel.Text = currentAmmo .. " / " .. reserveAmmo
 	end
 end
 
--- We now listen to the Tool's attributes directly instead of the Player's
-player.CharacterAdded:Connect(function(char)
+local function HookAmmoEvents(char: Model)
 	char.ChildAdded:Connect(function(child)
 		if child:IsA("Tool") and WeaponConfig[child.Name] then
 			
@@ -145,18 +145,22 @@ player.CharacterAdded:Connect(function(char)
 			
 			child:GetAttributeChangedSignal("CurrentAmmo"):Connect(SyncAmmo)
 			child:GetAttributeChangedSignal("ReserveAmmo"):Connect(SyncAmmo)
+			
+			-- Wait a split second to ensure GunController sets the initial numbers first
+			task.wait(0.05)
 			SyncAmmo()
 		end
 	end)
+	
 	char.ChildRemoved:Connect(function(child)
 		if child:IsA("Tool") then
 			ammoLabel.Text = ""
 		end
 	end)
-end)
+end
 
-player:GetAttributeChangedSignal("CurrentAmmo"):Connect(UpdateAmmoUI)
-player:GetAttributeChangedSignal("MaxAmmo"):Connect(UpdateAmmoUI)
-UpdateAmmoUI()
+-- Catch the character if they already spawned
+if player.Character then HookAmmoEvents(player.Character) end
+player.CharacterAdded:Connect(HookAmmoEvents)
 
 print("🖥️ [HUDController] Visual Interface Booted & Connected.")
