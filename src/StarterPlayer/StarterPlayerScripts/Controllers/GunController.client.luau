@@ -115,8 +115,6 @@ local function StartShooting()
 	if not equippedTool or not config then return end
 	
 	isShooting = true
-	
-	-- If they shoot while reloading a shotgun, cancel the reload!
 	if isReloading then isReloading = false end
 	
 	local currentWave = Workspace:GetAttribute("CurrentWave") or 1
@@ -139,6 +137,7 @@ local function StartShooting()
 				isShooting = false
 				isReloading = true
 				ReloadEvent:FireServer(equippedTool.Name)
+				task.delay(wStats.ReloadSpeed, function() isReloading = false end)
 				break
 			end
 		end
@@ -162,7 +161,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		local char = player.Character
 		local equippedTool = char and char:FindFirstChildWhichIsA("Tool")
 		if equippedTool and WeaponConfig[equippedTool.Name] and not isReloading then
-			-- Don't reload if clip is full
 			local currentAmmo = equippedTool:GetAttribute("CurrentAmmo") or 0
 			local currentWave = Workspace:GetAttribute("CurrentWave") or 1
 			local wStats = GetWeaponStats(equippedTool.Name, currentWave)
@@ -171,6 +169,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 				isShooting = false
 				isReloading = true
 				ReloadEvent:FireServer(equippedTool.Name)
+				task.delay(wStats.ReloadSpeed, function() isReloading = false end)
 			end
 		end
 	end

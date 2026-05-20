@@ -63,27 +63,32 @@ ReloadEvent.OnServerEvent:Connect(function(player: Player, weaponName: string)
 	local currentWave = Workspace:GetAttribute("CurrentWave") or 1
 	local wStats = GetWeaponStats(weaponName, currentWave)
 	
+	-- FIX 1: Initialize Ammo on the Server
+	local currentAmmo = equippedTool:GetAttribute("CurrentAmmo")
+	local reserveAmmo = equippedTool:GetAttribute("ReserveAmmo")
+	if currentAmmo == nil then currentAmmo = wStats.ClipSize; equippedTool:SetAttribute("CurrentAmmo", currentAmmo) end
+	if reserveAmmo == nil then reserveAmmo = wStats.TotalReserveAmmo; equippedTool:SetAttribute("ReserveAmmo", reserveAmmo) end
+	
+	if currentAmmo >= wStats.ClipSize or reserveAmmo <= 0 then return end 
+	
 	ReloadingPlayers[player.UserId] = true
 	
-	-- Shotguns load bullet-by-bullet. Standard guns wait full time and load all.
 	local config = WeaponConfig[weaponName]
 	local isProgressive = config.PelletCount ~= nil
 	local waitTime = isProgressive and (wStats.ReloadSpeed / wStats.ClipSize) or wStats.ReloadSpeed
 	
 	while ReloadingPlayers[player.UserId] do
-		local cAmmo = equippedTool:GetAttribute("CurrentAmmo") or 0
-		local rAmmo = equippedTool:GetAttribute("ReserveAmmo") or 0
+		local cAmmo = equippedTool:GetAttribute("CurrentAmmo") or wStats.ClipSize
+		local rAmmo = equippedTool:GetAttribute("ReserveAmmo") or wStats.TotalReserveAmmo
 		
 		if cAmmo >= wStats.ClipSize or rAmmo <= 0 then break end 
 		
 		task.wait(waitTime)
 		
-		-- If they shot their gun during the wait, the ShootEvent canceled the reload!
 		if not ReloadingPlayers[player.UserId] or equippedTool.Parent ~= char then break end
 		
-		-- Refresh values
-		cAmmo = equippedTool:GetAttribute("CurrentAmmo") or 0
-		rAmmo = equippedTool:GetAttribute("ReserveAmmo") or 0
+		cAmmo = equippedTool:GetAttribute("CurrentAmmo") or wStats.ClipSize
+		rAmmo = equippedTool:GetAttribute("ReserveAmmo") or wStats.TotalReserveAmmo
 		
 		if isProgressive then
 			equippedTool:SetAttribute("CurrentAmmo", cAmmo + 1)
@@ -93,7 +98,7 @@ ReloadEvent.OnServerEvent:Connect(function(player: Player, weaponName: string)
 			local ammoToLoad = math.min(ammoNeeded, rAmmo)
 			equippedTool:SetAttribute("CurrentAmmo", cAmmo + ammoToLoad)
 			equippedTool:SetAttribute("ReserveAmmo", rAmmo - ammoToLoad)
-			break -- Standard reload is done
+			break 
 		end
 	end
 	
@@ -105,7 +110,6 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 	local char = player.Character
 	if not char then return end
 	
-	-- Cancels progressive reloading if they shoot
 	ReloadingPlayers[player.UserId] = nil 
 	
 	local equippedTool = char:FindFirstChild(weaponName)
@@ -116,8 +120,11 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 	local wStats = GetWeaponStats(weaponName, currentWave)
 	local activeStats = StatManager.GetActiveStats(player)
 	
+	-- FIX 1: Initialize Ammo on the Server
 	local currentAmmo = equippedTool:GetAttribute("CurrentAmmo")
 	local reserveAmmo = equippedTool:GetAttribute("ReserveAmmo")
+	if currentAmmo == nil then currentAmmo = wStats.ClipSize; equippedTool:SetAttribute("CurrentAmmo", currentAmmo) end
+	if reserveAmmo == nil then reserveAmmo = wStats.TotalReserveAmmo; equippedTool:SetAttribute("ReserveAmmo", reserveAmmo) end
 	
 	if weaponName == "Glizzy shooter" then
 		if reserveAmmo <= 0 then return end
@@ -151,19 +158,11 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 		proj.CanCollide = false
 		proj.Parent = Workspace
 		
-		-- Physics Engine Propulsion
 		local att = Instance.new("Attachment", proj)
 		local vel = Instance.new("LinearVelocity", att)
 		vel.Attachment0 = att
 		vel.VectorVelocity = dir * (config.ProjectileType == "PhysicalTrajectory" and 100 or 200)
 		vel.MaxForce = math.huge
-		
-		if config.ProjectileType == "PhysicalObject" then
-			-- Rockets defy gravity
-			local antiGrav = Instance.new("VectorForce", att)
-			antiGrav.Attachment0 = att
-			antiGrav.Force = Vector3.new(0, proj:GetMass() * Workspace.Gravity, 0)
-		end
 		
 		local exploded = false
 		proj.Touched:Connect(function(hit)
@@ -172,14 +171,12 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 			
 			local blastRadius = config.BlastRadius or 15
 			
-			-- Built-in Roblox explosion for visuals/sound
 			local visualExp = Instance.new("Explosion")
 			visualExp.Position = proj.Position
 			visualExp.BlastRadius = blastRadius
-			visualExp.BlastPressure = 0 -- We do our own damage math!
+			visualExp.BlastPressure = 0 
 			visualExp.Parent = Workspace
 			
-			-- Area of Effect (AOE) Damage calculation
 			local partsInRadius = Workspace:GetPartBoundsInRadius(proj.Position, blastRadius)
 			local hitTargets = {} 
 			
@@ -190,11 +187,11 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 					local humanoid = model:FindFirstChild("Humanoid") :: Humanoid
 					if humanoid and humanoid.Health > 0 then
 						
-						-- Self Damage Check
 						local pTarget = Players:GetPlayerFromCharacter(model)
 						if pTarget == player then
-							humanoid:TakeDamage(baseDamage * 0.3) -- 30% Self Damage
-						elseif humanoid.Parent.Name == "ObesityMonster" then
+							humanoid:TakeDamage(baseDamage * 0.3) 
+						-- FIX 2: String.find prevents the "_Cached_" error
+						elseif string.find(humanoid.Parent.Name, "ObesityMonster") then
 							humanoid:TakeDamage(baseDamage)
 							
 							if humanoid.Health <= 0 then
@@ -214,15 +211,13 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 			proj:Destroy()
 		end)
 		
-		-- Fail-safe cleanup
 		task.delay(5, function() if proj.Parent then proj:Destroy() end end)
 		
 	-- [[ HITSCAN & SHOTGUN BRANCH ]]
 	else
 		local directions = typeof(directionData) == "table" and directionData or {directionData}
-		
-		-- Truncate to prevent exploiters from sending 1,000 raycasts in one table
 		local maxRays = config.PelletCount or 1
+		
 		for i = 1, math.min(#directions, maxRays) do
 			local dir = directions[i]
 			
@@ -236,7 +231,8 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 				local hitPart = raycastResult.Instance
 				local enemyModel = hitPart:FindFirstAncestorWhichIsA("Model")
 				
-				if enemyModel and enemyModel.Name == "ObesityMonster" then
+				-- FIX 2: String.find prevents the "_Cached_" error
+				if enemyModel and string.find(enemyModel.Name, "ObesityMonster") then
 					local monsterHumanoid = enemyModel:FindFirstChild("Humanoid") :: Humanoid
 					if monsterHumanoid and monsterHumanoid.Health > 0 then
 						
