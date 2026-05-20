@@ -52,7 +52,7 @@ local function GetWeaponStats(weaponName: string, currentWave: number)
 	return stats
 end
 
--- [[ 1. RELOAD LOGIC ]]
+-- [[ 1. PROGRESSIVE RELOAD LOGIC ]]
 ReloadEvent.OnServerEvent:Connect(function(player: Player, weaponName: string)
 	local char = player.Character
 	if not char or ReloadingPlayers[player.UserId] then return end
@@ -63,35 +63,50 @@ ReloadEvent.OnServerEvent:Connect(function(player: Player, weaponName: string)
 	local currentWave = Workspace:GetAttribute("CurrentWave") or 1
 	local wStats = GetWeaponStats(weaponName, currentWave)
 	
-	local currentAmmo = equippedTool:GetAttribute("CurrentAmmo")
-	local reserveAmmo = equippedTool:GetAttribute("ReserveAmmo")
-	
-	-- Initialize if nil
-	if currentAmmo == nil then currentAmmo = wStats.ClipSize end
-	if reserveAmmo == nil then reserveAmmo = wStats.TotalReserveAmmo end
-	
-	-- Stop if clip is full or no reserve ammo left
-	if currentAmmo >= wStats.ClipSize or reserveAmmo <= 0 then return end 
-	
 	ReloadingPlayers[player.UserId] = true
-	task.wait(wStats.ReloadSpeed)
 	
-	-- Calculate how much ammo we actually need
-	local ammoNeeded = wStats.ClipSize - currentAmmo
-	local ammoToLoad = math.min(ammoNeeded, reserveAmmo)
+	-- Shotguns load bullet-by-bullet. Standard guns wait full time and load all.
+	local config = WeaponConfig[weaponName]
+	local isProgressive = config.PelletCount ~= nil
+	local waitTime = isProgressive and (wStats.ReloadSpeed / wStats.ClipSize) or wStats.ReloadSpeed
 	
-	if equippedTool.Parent == char then 
-		equippedTool:SetAttribute("CurrentAmmo", currentAmmo + ammoToLoad)
-		equippedTool:SetAttribute("ReserveAmmo", reserveAmmo - ammoToLoad)
+	while ReloadingPlayers[player.UserId] do
+		local cAmmo = equippedTool:GetAttribute("CurrentAmmo") or 0
+		local rAmmo = equippedTool:GetAttribute("ReserveAmmo") or 0
+		
+		if cAmmo >= wStats.ClipSize or rAmmo <= 0 then break end 
+		
+		task.wait(waitTime)
+		
+		-- If they shot their gun during the wait, the ShootEvent canceled the reload!
+		if not ReloadingPlayers[player.UserId] or equippedTool.Parent ~= char then break end
+		
+		-- Refresh values
+		cAmmo = equippedTool:GetAttribute("CurrentAmmo") or 0
+		rAmmo = equippedTool:GetAttribute("ReserveAmmo") or 0
+		
+		if isProgressive then
+			equippedTool:SetAttribute("CurrentAmmo", cAmmo + 1)
+			equippedTool:SetAttribute("ReserveAmmo", rAmmo - 1)
+		else
+			local ammoNeeded = wStats.ClipSize - cAmmo
+			local ammoToLoad = math.min(ammoNeeded, rAmmo)
+			equippedTool:SetAttribute("CurrentAmmo", cAmmo + ammoToLoad)
+			equippedTool:SetAttribute("ReserveAmmo", rAmmo - ammoToLoad)
+			break -- Standard reload is done
+		end
 	end
 	
 	ReloadingPlayers[player.UserId] = nil
 end)
 
--- [[ 2. SHOOTING LOGIC ]]
-ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, origin: Vector3, direction: Vector3)
+-- [[ 2. SHOOTING & PHYSICS LOGIC ]]
+ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, origin: Vector3, directionData: any)
 	local char = player.Character
-	if not char or ReloadingPlayers[player.UserId] then return end
+	if not char then return end
+	
+	-- Cancels progressive reloading if they shoot
+	ReloadingPlayers[player.UserId] = nil 
 	
 	local equippedTool = char:FindFirstChild(weaponName)
 	local config = WeaponConfig[weaponName]
@@ -101,78 +116,148 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 	local wStats = GetWeaponStats(weaponName, currentWave)
 	local activeStats = StatManager.GetActiveStats(player)
 	
-	-- AMMO CHECK & INITIALIZATION
 	local currentAmmo = equippedTool:GetAttribute("CurrentAmmo")
 	local reserveAmmo = equippedTool:GetAttribute("ReserveAmmo")
 	
-	if currentAmmo == nil then 
-		currentAmmo = wStats.ClipSize 
-		equippedTool:SetAttribute("CurrentAmmo", currentAmmo)
-	end
-	if reserveAmmo == nil then 
-		reserveAmmo = wStats.TotalReserveAmmo 
-		equippedTool:SetAttribute("ReserveAmmo", reserveAmmo)
-	end
-	
-	-- Check for empty
 	if weaponName == "Glizzy shooter" then
-		if reserveAmmo <= 0 then return end -- LMG checks reserve
+		if reserveAmmo <= 0 then return end
 	else
-		if currentAmmo <= 0 then return end -- Normal guns check clip
+		if currentAmmo <= 0 then return end
 	end
 	
-	-- FIRE RATE ANTI-CHEAT
 	local lastShot = PlayerCooldowns[player.UserId] or 0
 	if os.clock() - lastShot < wStats.FireRate then return end
-	
 	PlayerCooldowns[player.UserId] = os.clock()
 	
-	-- DECREMENT AMMO
 	if weaponName == "Glizzy shooter" then
 		equippedTool:SetAttribute("ReserveAmmo", reserveAmmo - 1)
 	else
 		equippedTool:SetAttribute("CurrentAmmo", currentAmmo - 1)
 	end
 	
-	-- NEW DYNAMIC DAMAGE CALCULATION
-	local totalDamage = wStats.Damage + (activeStats.GunDamage * 0.5)
+	local baseDamage = wStats.Damage + (activeStats.GunDamage * 0.5)
+	local isExplosive = config.ProjectileType == "PhysicalObject" or config.ProjectileType == "PhysicalTrajectory"
 	
-	local raycastParams = RaycastParams.new()
-	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-	raycastParams.FilterDescendantsInstances = {char}
-	
-	local raycastResult = Workspace:Raycast(origin, direction * 300, raycastParams)
-	
-	if raycastResult and raycastResult.Instance then
-		local hitPart = raycastResult.Instance
-		local enemyModel = hitPart:FindFirstAncestorWhichIsA("Model")
+	-- [[ EXPLOSIVES BRANCH ]]
+	if isExplosive then
+		local dir = typeof(directionData) == "Vector3" and directionData or Vector3.new(0,0,-1)
 		
-		if enemyModel then
-			local monsterHumanoid = enemyModel:FindFirstChild("Humanoid") :: Humanoid
-			if monsterHumanoid and monsterHumanoid.Health > 0 then
-				
-				-- HEADSHOT MULTIPLIER
-				if hitPart.Name == "Head" then
-					totalDamage = totalDamage * config.HeadshotMultiplier
-				end
-				
-				monsterHumanoid:TakeDamage(totalDamage)
-				
-				-- KILL / LOOT CHECK
-				if monsterHumanoid.Health <= 0 then
-					-- DEATH LOCK: Prevent shotgun pellets from counting as 8 kills
-					if monsterHumanoid:GetAttribute("IsDead") then return end
-					monsterHumanoid:SetAttribute("IsDead", true)
-
-					-- Give Sausage
-					local profile = DataService.GetProfile(player)
-					if profile then
-						profile.Data.Sausages += 1
-						player:SetAttribute("Sausages", profile.Data.Sausages)
+		local proj = Instance.new("Part")
+		proj.Name = "RocketProjectile"
+		proj.Size = Vector3.new(0.5, 0.5, 1.5)
+		proj.Color = Color3.fromRGB(50, 50, 50)
+		proj.Material = Enum.Material.Metal
+		proj.CFrame = CFrame.lookAt(origin, origin + dir)
+		proj.CanCollide = false
+		proj.Parent = Workspace
+		
+		-- Physics Engine Propulsion
+		local att = Instance.new("Attachment", proj)
+		local vel = Instance.new("LinearVelocity", att)
+		vel.Attachment0 = att
+		vel.VectorVelocity = dir * (config.ProjectileType == "PhysicalTrajectory" and 100 or 200)
+		vel.MaxForce = math.huge
+		
+		if config.ProjectileType == "PhysicalObject" then
+			-- Rockets defy gravity
+			local antiGrav = Instance.new("VectorForce", att)
+			antiGrav.Attachment0 = att
+			antiGrav.Force = Vector3.new(0, proj:GetMass() * Workspace.Gravity, 0)
+		end
+		
+		local exploded = false
+		proj.Touched:Connect(function(hit)
+			if exploded or hit:IsDescendantOf(char) then return end
+			exploded = true
+			
+			local blastRadius = config.BlastRadius or 15
+			
+			-- Built-in Roblox explosion for visuals/sound
+			local visualExp = Instance.new("Explosion")
+			visualExp.Position = proj.Position
+			visualExp.BlastRadius = blastRadius
+			visualExp.BlastPressure = 0 -- We do our own damage math!
+			visualExp.Parent = Workspace
+			
+			-- Area of Effect (AOE) Damage calculation
+			local partsInRadius = Workspace:GetPartBoundsInRadius(proj.Position, blastRadius)
+			local hitTargets = {} 
+			
+			for _, p in ipairs(partsInRadius) do
+				local model = p:FindFirstAncestorWhichIsA("Model")
+				if model and not hitTargets[model] then
+					hitTargets[model] = true
+					local humanoid = model:FindFirstChild("Humanoid") :: Humanoid
+					if humanoid and humanoid.Health > 0 then
+						
+						-- Self Damage Check
+						local pTarget = Players:GetPlayerFromCharacter(model)
+						if pTarget == player then
+							humanoid:TakeDamage(baseDamage * 0.3) -- 30% Self Damage
+						elseif humanoid.Parent.Name == "ObesityMonster" then
+							humanoid:TakeDamage(baseDamage)
+							
+							if humanoid.Health <= 0 then
+								if humanoid:GetAttribute("IsDead") then continue end
+								humanoid:SetAttribute("IsDead", true)
+								local profile = DataService.GetProfile(player)
+								if profile then
+									profile.Data.Sausages += 1
+									player:SetAttribute("Sausages", profile.Data.Sausages)
+								end
+								DropService.RollForDrop(model.PrimaryPart.Position, player)
+							end
+						end
 					end
-
-					-- Roll for Health/Ammo Drop
-					DropService.RollForDrop(hitPart.Position, player)
+				end
+			end
+			proj:Destroy()
+		end)
+		
+		-- Fail-safe cleanup
+		task.delay(5, function() if proj.Parent then proj:Destroy() end end)
+		
+	-- [[ HITSCAN & SHOTGUN BRANCH ]]
+	else
+		local directions = typeof(directionData) == "table" and directionData or {directionData}
+		
+		-- Truncate to prevent exploiters from sending 1,000 raycasts in one table
+		local maxRays = config.PelletCount or 1
+		for i = 1, math.min(#directions, maxRays) do
+			local dir = directions[i]
+			
+			local raycastParams = RaycastParams.new()
+			raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+			raycastParams.FilterDescendantsInstances = {char}
+			
+			local raycastResult = Workspace:Raycast(origin, dir * 300, raycastParams)
+			
+			if raycastResult and raycastResult.Instance then
+				local hitPart = raycastResult.Instance
+				local enemyModel = hitPart:FindFirstAncestorWhichIsA("Model")
+				
+				if enemyModel and enemyModel.Name == "ObesityMonster" then
+					local monsterHumanoid = enemyModel:FindFirstChild("Humanoid") :: Humanoid
+					if monsterHumanoid and monsterHumanoid.Health > 0 then
+						
+						local finalDamage = baseDamage
+						if hitPart.Name == "Head" then
+							finalDamage = finalDamage * config.HeadshotMultiplier
+						end
+						
+						monsterHumanoid:TakeDamage(finalDamage)
+						
+						if monsterHumanoid.Health <= 0 then
+							if monsterHumanoid:GetAttribute("IsDead") then continue end
+							monsterHumanoid:SetAttribute("IsDead", true)
+							local profile = DataService.GetProfile(player)
+							if profile then
+								profile.Data.Sausages += 1
+								player:SetAttribute("Sausages", profile.Data.Sausages)
+							end
+							DropService.RollForDrop(hitPart.Position, player)
+						end
+					end
 				end
 			end
 		end

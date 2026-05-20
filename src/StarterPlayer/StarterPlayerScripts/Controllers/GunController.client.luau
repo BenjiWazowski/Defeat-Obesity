@@ -58,20 +58,44 @@ local function FireWeapon(equippedTool: Tool, config: any)
 	
 	local origin = muzzle.WorldPosition
 	local targetPosition = mouse.Hit.Position
-	local direction = (targetPosition - origin).Unit
+	local baseDirection = (targetPosition - origin).Unit
 	
-	local spread = config.Spread
-	direction = Vector3.new(
-		direction.X + (math.random(-100, 100) / 100) * spread,
-		direction.Y + (math.random(-100, 100) / 100) * spread,
-		direction.Z + (math.random(-100, 100) / 100) * spread
-	).Unit
+	local isExplosive = config.ProjectileType == "PhysicalObject" or config.ProjectileType == "PhysicalTrajectory"
+	local isShotgun = config.PelletCount and config.PelletCount > 1
 	
-	local visualEnd = origin + (direction * 300)
-	DrawTracer(origin, visualEnd)
-	ShootEvent:FireServer(equippedTool.Name, origin, direction)
+	if isExplosive then
+		-- Explosives don't draw tracer lasers. The server will spawn the physical rocket.
+		ShootEvent:FireServer(equippedTool.Name, origin, baseDirection)
+		
+	elseif isShotgun then
+		-- Shotgun: Calculate 12-24 unique directions
+		local pelletDirections = {}
+		for i = 1, config.PelletCount do
+			local spread = config.Spread
+			local dir = Vector3.new(
+				baseDirection.X + (math.random(-100, 100) / 100) * spread,
+				baseDirection.Y + (math.random(-100, 100) / 100) * spread,
+				baseDirection.Z + (math.random(-100, 100) / 100) * spread
+			).Unit
+			table.insert(pelletDirections, dir)
+			DrawTracer(origin, origin + (dir * 300))
+		end
+		-- Send the array of directions to the server
+		ShootEvent:FireServer(equippedTool.Name, origin, pelletDirections)
+		
+	else
+		-- Standard Hitscan
+		local spread = config.Spread
+		local dir = Vector3.new(
+			baseDirection.X + (math.random(-100, 100) / 100) * spread,
+			baseDirection.Y + (math.random(-100, 100) / 100) * spread,
+			baseDirection.Z + (math.random(-100, 100) / 100) * spread
+		).Unit
+		DrawTracer(origin, origin + (dir * 300))
+		ShootEvent:FireServer(equippedTool.Name, origin, dir)
+	end
 	
-	-- Local Ammo Prediction for instant UI updates
+	-- Local Ammo Prediction
 	local currentAmmo = equippedTool:GetAttribute("CurrentAmmo")
 	local reserveAmmo = equippedTool:GetAttribute("ReserveAmmo")
 	
@@ -84,7 +108,7 @@ end
 
 local function StartShooting()
 	local char = player.Character
-	if not char or isReloading then return end
+	if not char then return end
 	
 	local equippedTool = char:FindFirstChildWhichIsA("Tool")
 	local config = equippedTool and WeaponConfig[equippedTool.Name]
@@ -92,14 +116,15 @@ local function StartShooting()
 	
 	isShooting = true
 	
+	-- If they shoot while reloading a shotgun, cancel the reload!
+	if isReloading then isReloading = false end
+	
 	local currentWave = Workspace:GetAttribute("CurrentWave") or 1
 	local wStats = GetWeaponStats(equippedTool.Name, currentWave)
 	
-	while isShooting and not isReloading do
-		-- 1. FIRE RATE ENFORCEMENT
+	while isShooting do
 		if os.clock() - lastShot < wStats.FireRate then
 			task.wait(0.01)
-			-- If SemiAuto, holding the mouse shouldn't shoot once cooldown ends. Force them to click again.
 			if config.Type == "SemiAuto" then break end
 			continue
 		end
@@ -107,7 +132,6 @@ local function StartShooting()
 		local currentAmmo = equippedTool:GetAttribute("CurrentAmmo") or wStats.ClipSize
 		local reserveAmmo = equippedTool:GetAttribute("ReserveAmmo") or wStats.TotalReserveAmmo
 		
-		-- 2. AUTO-RELOAD LOGIC
 		if equippedTool.Name == "Glizzy shooter" then
 			if reserveAmmo <= 0 then break end
 		else
@@ -115,25 +139,20 @@ local function StartShooting()
 				isShooting = false
 				isReloading = true
 				ReloadEvent:FireServer(equippedTool.Name)
-				task.wait(wStats.ReloadSpeed)
-				isReloading = false
 				break
 			end
 		end
 		
-		-- 3. FIRE
 		lastShot = os.clock()
 		FireWeapon(equippedTool, config)
 		
 		if config.Type == "SemiAuto" then break end
 		
-		-- Update stats mid-spray just in case the wave changes
 		currentWave = Workspace:GetAttribute("CurrentWave") or 1
 		wStats = GetWeaponStats(equippedTool.Name, currentWave)
 	end
 end
 
--- [[ INPUT HANDLING ]]
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	
@@ -143,14 +162,16 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		local char = player.Character
 		local equippedTool = char and char:FindFirstChildWhichIsA("Tool")
 		if equippedTool and WeaponConfig[equippedTool.Name] and not isReloading then
+			-- Don't reload if clip is full
+			local currentAmmo = equippedTool:GetAttribute("CurrentAmmo") or 0
 			local currentWave = Workspace:GetAttribute("CurrentWave") or 1
 			local wStats = GetWeaponStats(equippedTool.Name, currentWave)
 			
-			isShooting = false
-			isReloading = true
-			ReloadEvent:FireServer(equippedTool.Name)
-			task.wait(wStats.ReloadSpeed)
-			isReloading = false
+			if currentAmmo < wStats.ClipSize then
+				isShooting = false
+				isReloading = true
+				ReloadEvent:FireServer(equippedTool.Name)
+			end
 		end
 	end
 end)
