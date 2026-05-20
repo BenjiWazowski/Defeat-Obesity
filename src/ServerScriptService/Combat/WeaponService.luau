@@ -11,16 +11,34 @@ local DataService = require(script.Parent.Parent.Core:WaitForChild("DataService"
 
 local NetworkEvents = ReplicatedStorage:WaitForChild("NetworkEvents")
 
-local ShootEvent = Instance.new("RemoteEvent")
-ShootEvent.Name = "ShootEvent"
-ShootEvent.Parent = NetworkEvents
-
-local ReloadEvent = Instance.new("RemoteEvent")
-ReloadEvent.Name = "ReloadEvent"
-ReloadEvent.Parent = NetworkEvents
+local ShootEvent = NetworkEvents:WaitForChild("ShootEvent") :: RemoteEvent
+local ReloadEvent = NetworkEvents:WaitForChild("ReloadEvent") :: RemoteEvent
 
 local PlayerCooldowns = {}
-local ReloadingPlayers = {} -- Tracks who is currently reloading so they can't spam it
+local ReloadingPlayers = {} 
+
+-- Helper function to calculate a weapon's current wave stats dynamically
+local function GetWeaponStats(weaponName: string, currentWave: number)
+	local config = WeaponConfig[weaponName]
+	local stats = {}
+	local decayRate = 0.1
+	
+	-- Exponential Damage Growth
+	stats.Damage = config.Damage.Base * math.pow(config.Damage.GrowthMult, currentWave - 1)
+	
+	-- Diminishing Caps for everything else
+	stats.ClipSize = math.floor(config.ClipSize.Cap - ((config.ClipSize.Cap - config.ClipSize.Base) * math.pow(1 - decayRate, currentWave - 1)))
+	stats.ReserveClips = math.floor(config.ReserveClips.Cap - ((config.ReserveClips.Cap - config.ReserveClips.Base) * math.pow(1 - decayRate, currentWave - 1)))
+	stats.FireRate = config.FireRate.Cap - ((config.FireRate.Cap - config.FireRate.Base) * math.pow(1 - decayRate, currentWave - 1))
+	stats.ReloadSpeed = config.ReloadSpeed.Cap - ((config.ReloadSpeed.Cap - config.ReloadSpeed.Base) * math.pow(1 - decayRate, currentWave - 1))
+	
+	stats.TotalReserveAmmo = stats.ClipSize * stats.ReserveClips
+	if weaponName == "Glizzy shooter" then
+		stats.TotalReserveAmmo = stats.ReserveClips -- LMG uses raw numbers instead of clips
+	end
+	
+	return stats
+end
 
 -- [[ 1. RELOAD LOGIC ]]
 ReloadEvent.OnServerEvent:Connect(function(player: Player, weaponName: string)
@@ -28,19 +46,33 @@ ReloadEvent.OnServerEvent:Connect(function(player: Player, weaponName: string)
 	if not char or ReloadingPlayers[player.UserId] then return end
 	
 	local equippedTool = char:FindFirstChild(weaponName)
-	local config = WeaponConfig[weaponName]
-	if not equippedTool or not config then return end
+	if not equippedTool or not WeaponConfig[weaponName] then return end
 	
-	local activeStats = StatManager.GetActiveStats(player)
+	local currentWave = Workspace:GetAttribute("CurrentWave") or 1
+	local wStats = GetWeaponStats(weaponName, currentWave)
+	
+	local currentAmmo = equippedTool:GetAttribute("CurrentAmmo")
+	local reserveAmmo = equippedTool:GetAttribute("ReserveAmmo")
+	
+	-- Initialize if nil
+	if currentAmmo == nil then currentAmmo = wStats.ClipSize end
+	if reserveAmmo == nil then reserveAmmo = wStats.TotalReserveAmmo end
+	
+	-- Stop if clip is full or no reserve ammo left
+	if currentAmmo >= wStats.ClipSize or reserveAmmo <= 0 then return end 
 	
 	ReloadingPlayers[player.UserId] = true
-	-- Simulate reload time (modified by their ReloadSpeed stat)
-	task.wait(activeStats.ReloadSpeed)
+	task.wait(wStats.ReloadSpeed)
 	
-	-- Refill the tool's ammo attribute
-	if equippedTool.Parent == char then -- Ensure they are still holding it
-		equippedTool:SetAttribute("CurrentAmmo", activeStats.AmmoCapacity)
+	-- Calculate how much ammo we actually need
+	local ammoNeeded = wStats.ClipSize - currentAmmo
+	local ammoToLoad = math.min(ammoNeeded, reserveAmmo)
+	
+	if equippedTool.Parent == char then 
+		equippedTool:SetAttribute("CurrentAmmo", currentAmmo + ammoToLoad)
+		equippedTool:SetAttribute("ReserveAmmo", reserveAmmo - ammoToLoad)
 	end
+	
 	ReloadingPlayers[player.UserId] = nil
 end)
 
@@ -53,27 +85,45 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 	local config = WeaponConfig[weaponName]
 	if not equippedTool or not config then return end
 	
+	local currentWave = Workspace:GetAttribute("CurrentWave") or 1
+	local wStats = GetWeaponStats(weaponName, currentWave)
 	local activeStats = StatManager.GetActiveStats(player)
 	
-	-- AMMO CHECK
+	-- AMMO CHECK & INITIALIZATION
 	local currentAmmo = equippedTool:GetAttribute("CurrentAmmo")
+	local reserveAmmo = equippedTool:GetAttribute("ReserveAmmo")
+	
 	if currentAmmo == nil then 
-		currentAmmo = activeStats.AmmoCapacity 
+		currentAmmo = wStats.ClipSize 
 		equippedTool:SetAttribute("CurrentAmmo", currentAmmo)
 	end
+	if reserveAmmo == nil then 
+		reserveAmmo = wStats.TotalReserveAmmo 
+		equippedTool:SetAttribute("ReserveAmmo", reserveAmmo)
+	end
 	
-	if currentAmmo <= 0 then return end -- Empty clip
+	-- Check for empty
+	if weaponName == "Glizzy shooter" then
+		if reserveAmmo <= 0 then return end -- LMG checks reserve
+	else
+		if currentAmmo <= 0 then return end -- Normal guns check clip
+	end
 	
 	-- FIRE RATE ANTI-CHEAT
 	local lastShot = PlayerCooldowns[player.UserId] or 0
-	if os.clock() - lastShot < config.FireRate then return end
+	if os.clock() - lastShot < wStats.FireRate then return end
 	
 	PlayerCooldowns[player.UserId] = os.clock()
 	
-	-- Decrement Ammo
-	equippedTool:SetAttribute("CurrentAmmo", currentAmmo - 1)
+	-- DECREMENT AMMO
+	if weaponName == "Glizzy shooter" then
+		equippedTool:SetAttribute("ReserveAmmo", reserveAmmo - 1)
+	else
+		equippedTool:SetAttribute("CurrentAmmo", currentAmmo - 1)
+	end
 	
-	local totalDamage = config.Damage + (activeStats.GunDamage * 0.5)
+	-- NEW DYNAMIC DAMAGE CALCULATION
+	local totalDamage = wStats.Damage + (activeStats.GunDamage * 0.5)
 	
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -89,12 +139,14 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 			local monsterHumanoid = enemyModel:FindFirstChild("Humanoid") :: Humanoid
 			if monsterHumanoid and monsterHumanoid.Health > 0 then
 				
+				-- HEADSHOT MULTIPLIER
 				if hitPart.Name == "Head" then
 					totalDamage = totalDamage * config.HeadshotMultiplier
 				end
 				
 				monsterHumanoid:TakeDamage(totalDamage)
 				
+				-- KILL / LOOT CHECK
 				if monsterHumanoid.Health <= 0 then
 					local profile = DataService.GetProfile(player)
 					if profile then

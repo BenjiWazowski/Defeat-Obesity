@@ -118,14 +118,42 @@ local ammoLabel = mainHUD:WaitForChild("AmmoText") :: TextLabel
 
 local function UpdateAmmoUI()
 	local currentAmmo = player:GetAttribute("CurrentAmmo") or 0
-	local maxAmmo = player:GetAttribute("MaxAmmo") or 0
+	local reserveAmmo = player:GetAttribute("ReserveAmmo") or 0
 	
-	if maxAmmo == 0 then
-		ammoLabel.Text = "" -- Hide text if holding melee/nothing
+	local char = player.Character
+	local tool = char and char:FindFirstChildWhichIsA("Tool")
+	
+	if not tool or not WeaponConfig[tool.Name] then
+		ammoLabel.Text = "" 
+	elseif tool.Name == "Glizzy shooter" then
+		ammoLabel.Text = reserveAmmo -- LMG only shows total pool
 	else
-		ammoLabel.Text = currentAmmo .. " / " .. maxAmmo
+		ammoLabel.Text = currentAmmo .. " / " .. reserveAmmo
 	end
 end
+
+-- We now listen to the Tool's attributes directly instead of the Player's
+player.CharacterAdded:Connect(function(char)
+	char.ChildAdded:Connect(function(child)
+		if child:IsA("Tool") and WeaponConfig[child.Name] then
+			
+			local function SyncAmmo()
+				player:SetAttribute("CurrentAmmo", child:GetAttribute("CurrentAmmo") or 0)
+				player:SetAttribute("ReserveAmmo", child:GetAttribute("ReserveAmmo") or 0)
+				UpdateAmmoUI()
+			end
+			
+			child:GetAttributeChangedSignal("CurrentAmmo"):Connect(SyncAmmo)
+			child:GetAttributeChangedSignal("ReserveAmmo"):Connect(SyncAmmo)
+			SyncAmmo()
+		end
+	end)
+	char.ChildRemoved:Connect(function(child)
+		if child:IsA("Tool") then
+			ammoLabel.Text = ""
+		end
+	end)
+end)
 
 player:GetAttributeChangedSignal("CurrentAmmo"):Connect(UpdateAmmoUI)
 player:GetAttributeChangedSignal("MaxAmmo"):Connect(UpdateAmmoUI)
