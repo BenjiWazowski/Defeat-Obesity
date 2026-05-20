@@ -14,6 +14,27 @@ local WeaponConfig = require(ReplicatedStorage.GameConfig:WaitForChild("WeaponCo
 
 local isShooting = false
 local isReloading = false
+local lastShot = 0
+
+-- [[ MATH ENGINE (Client Mirror) ]]
+-- This calculates the exact same stats as the server so the Client knows the true FireRate
+local function GetWeaponStats(weaponName: string, currentWave: number)
+	local config = WeaponConfig[weaponName]
+	local stats = {}
+	local decayRate = 0.1
+	
+	stats.Damage = config.Damage.Base * math.pow(config.Damage.GrowthMult, currentWave - 1)
+	stats.ClipSize = math.floor(config.ClipSize.Cap - ((config.ClipSize.Cap - config.ClipSize.Base) * math.pow(1 - decayRate, currentWave - 1)))
+	stats.ReserveClips = math.floor(config.ReserveClips.Cap - ((config.ReserveClips.Cap - config.ReserveClips.Base) * math.pow(1 - decayRate, currentWave - 1)))
+	stats.FireRate = config.FireRate.Cap - ((config.FireRate.Cap - config.FireRate.Base) * math.pow(1 - decayRate, currentWave - 1))
+	stats.ReloadSpeed = config.ReloadSpeed.Cap - ((config.ReloadSpeed.Cap - config.ReloadSpeed.Base) * math.pow(1 - decayRate, currentWave - 1))
+	
+	stats.TotalReserveAmmo = stats.ClipSize * stats.ReserveClips
+	if weaponName == "Glizzy shooter" then
+		stats.TotalReserveAmmo = stats.ReserveClips 
+	end
+	return stats
+end
 
 local function DrawTracer(origin: Vector3, endPosition: Vector3)
 	local distance = (endPosition - origin).Magnitude
@@ -28,22 +49,6 @@ local function DrawTracer(origin: Vector3, endPosition: Vector3)
 	tracer.CFrame = CFrame.lookAt(origin, endPosition) * CFrame.new(0, 0, -distance / 2)
 	tracer.Parent = Workspace
 	task.delay(0.05, function() tracer:Destroy() end)
-end
-
--- Update the Player Attributes for the HUD
-local function SyncAmmoToHUD(equippedTool: Tool?)
-	if not equippedTool then
-		player:SetAttribute("CurrentAmmo", 0)
-		player:SetAttribute("MaxAmmo", 0)
-		return
-	end
-	
-	local maxAmmo = player:GetAttribute("Stat_AmmoCapacity") or WeaponConfig[equippedTool.Name].AmmoCapacity
-	local currentAmmo = equippedTool:GetAttribute("CurrentAmmo")
-	if currentAmmo == nil then currentAmmo = maxAmmo end
-	
-	player:SetAttribute("CurrentAmmo", currentAmmo)
-	player:SetAttribute("MaxAmmo", maxAmmo)
 end
 
 local function FireWeapon(equippedTool: Tool, config: any)
@@ -66,9 +71,15 @@ local function FireWeapon(equippedTool: Tool, config: any)
 	DrawTracer(origin, visualEnd)
 	ShootEvent:FireServer(equippedTool.Name, origin, direction)
 	
-	-- Local Ammo Prediction for UI responsiveness
-	local currentAmmo = equippedTool:GetAttribute("CurrentAmmo") or config.AmmoCapacity
-	equippedTool:SetAttribute("CurrentAmmo", currentAmmo - 1)
+	-- Local Ammo Prediction for instant UI updates
+	local currentAmmo = equippedTool:GetAttribute("CurrentAmmo")
+	local reserveAmmo = equippedTool:GetAttribute("ReserveAmmo")
+	
+	if equippedTool.Name == "Glizzy shooter" then
+		if reserveAmmo then equippedTool:SetAttribute("ReserveAmmo", reserveAmmo - 1) end
+	else
+		if currentAmmo then equippedTool:SetAttribute("CurrentAmmo", currentAmmo - 1) end
+	end
 end
 
 local function StartShooting()
@@ -81,32 +92,48 @@ local function StartShooting()
 	
 	isShooting = true
 	
+	local currentWave = Workspace:GetAttribute("CurrentWave") or 1
+	local wStats = GetWeaponStats(equippedTool.Name, currentWave)
+	
 	while isShooting and not isReloading do
-		local currentAmmo = equippedTool:GetAttribute("CurrentAmmo")
-		
-		-- Auto-Reload if empty
-		if currentAmmo and currentAmmo <= 0 then
-			isShooting = false
-			ReloadEvent:FireServer(equippedTool.Name)
-			isReloading = true
-			task.wait(player:GetAttribute("Stat_ReloadSpeed") or config.ReloadSpeed)
-			isReloading = false
-			break
+		-- 1. FIRE RATE ENFORCEMENT
+		if os.clock() - lastShot < wStats.FireRate then
+			task.wait(0.01)
+			-- If SemiAuto, holding the mouse shouldn't shoot once cooldown ends. Force them to click again.
+			if config.Type == "SemiAuto" then break end
+			continue
 		end
 		
+		local currentAmmo = equippedTool:GetAttribute("CurrentAmmo") or wStats.ClipSize
+		local reserveAmmo = equippedTool:GetAttribute("ReserveAmmo") or wStats.TotalReserveAmmo
+		
+		-- 2. AUTO-RELOAD LOGIC
+		if equippedTool.Name == "Glizzy shooter" then
+			if reserveAmmo <= 0 then break end
+		else
+			if currentAmmo <= 0 then
+				isShooting = false
+				isReloading = true
+				ReloadEvent:FireServer(equippedTool.Name)
+				task.wait(wStats.ReloadSpeed)
+				isReloading = false
+				break
+			end
+		end
+		
+		-- 3. FIRE
+		lastShot = os.clock()
 		FireWeapon(equippedTool, config)
 		
-		task.wait(config.FireRate)
-		
-		-- Break loop if it's a SemiAuto weapon (must click again)
 		if config.Type == "SemiAuto" then break end
 		
-		-- Re-verify they are still holding the tool
-		if not char:FindFirstChild(equippedTool.Name) then break end
+		-- Update stats mid-spray just in case the wave changes
+		currentWave = Workspace:GetAttribute("CurrentWave") or 1
+		wStats = GetWeaponStats(equippedTool.Name, currentWave)
 	end
 end
 
--- Mouse Control
+-- [[ INPUT HANDLING ]]
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	
@@ -116,10 +143,13 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		local char = player.Character
 		local equippedTool = char and char:FindFirstChildWhichIsA("Tool")
 		if equippedTool and WeaponConfig[equippedTool.Name] and not isReloading then
+			local currentWave = Workspace:GetAttribute("CurrentWave") or 1
+			local wStats = GetWeaponStats(equippedTool.Name, currentWave)
+			
 			isShooting = false
 			isReloading = true
 			ReloadEvent:FireServer(equippedTool.Name)
-			task.wait(player:GetAttribute("Stat_ReloadSpeed") or WeaponConfig[equippedTool.Name].ReloadSpeed)
+			task.wait(wStats.ReloadSpeed)
 			isReloading = false
 		end
 	end
@@ -131,19 +161,19 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
--- Hook Tool Equip/Unequip to the HUD
+-- Initialize Tool Ammo Attributes so HUD displays properly on Equip
 player.CharacterAdded:Connect(function(char)
 	char.ChildAdded:Connect(function(child)
 		if child:IsA("Tool") and WeaponConfig[child.Name] then
-			SyncAmmoToHUD(child)
-			child:GetAttributeChangedSignal("CurrentAmmo"):Connect(function()
-				SyncAmmoToHUD(child)
-			end)
-		end
-	end)
-	char.ChildRemoved:Connect(function(child)
-		if child:IsA("Tool") then
-			SyncAmmoToHUD(nil)
+			local currentWave = Workspace:GetAttribute("CurrentWave") or 1
+			local wStats = GetWeaponStats(child.Name, currentWave)
+			
+			if child:GetAttribute("CurrentAmmo") == nil then
+				child:SetAttribute("CurrentAmmo", wStats.ClipSize)
+			end
+			if child:GetAttribute("ReserveAmmo") == nil then
+				child:SetAttribute("ReserveAmmo", wStats.TotalReserveAmmo)
+			end
 		end
 	end)
 end)
