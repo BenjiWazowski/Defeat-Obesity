@@ -15,7 +15,7 @@ local WeaponConfig = {
 		HeadshotMultiplier = 1.5,
 		ProjectileType = "Raycast"
 	},
-	["Desert Baegal"] = {
+	["Desert Bagel"] = {
 		Type = "SemiAuto",
 		Damage = { Base = 50, GrowthMult = 1.13 },
 		FireRate = { Base = 0.8, Cap = 0.4 },

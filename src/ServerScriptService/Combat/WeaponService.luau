@@ -9,10 +9,20 @@ local WeaponConfig = require(ReplicatedStorage.GameConfig:WaitForChild("WeaponCo
 local StatManager = require(script.Parent.Parent.Core:WaitForChild("StatManager"))
 local DataService = require(script.Parent.Parent.Core:WaitForChild("DataService"))
 
-local NetworkEvents = ReplicatedStorage:WaitForChild("NetworkEvents")
+local NetworkEvents = ReplicatedStorage:FindFirstChild("NetworkEvents")
+if not NetworkEvents then
+	NetworkEvents = Instance.new("Folder")
+	NetworkEvents.Name = "NetworkEvents"
+	NetworkEvents.Parent = ReplicatedStorage
+end
 
-local ShootEvent = NetworkEvents:WaitForChild("ShootEvent") :: RemoteEvent
-local ReloadEvent = NetworkEvents:WaitForChild("ReloadEvent") :: RemoteEvent
+local ShootEvent = NetworkEvents:FindFirstChild("ShootEvent") or Instance.new("RemoteEvent")
+ShootEvent.Name = "ShootEvent"
+ShootEvent.Parent = NetworkEvents
+
+local ReloadEvent = NetworkEvents:FindFirstChild("ReloadEvent") or Instance.new("RemoteEvent")
+ReloadEvent.Name = "ReloadEvent"
+ReloadEvent.Parent = NetworkEvents
 
 local PlayerCooldowns = {}
 local ReloadingPlayers = {} 

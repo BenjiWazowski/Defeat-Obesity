@@ -8,6 +8,8 @@ local mouse = player:GetMouse()
 local NetworkEvents = ReplicatedStorage:WaitForChild("NetworkEvents")
 local MeleeSwingEvent = NetworkEvents:WaitForChild("MeleeSwingEvent") :: RemoteEvent
 
+local WeaponConfig = require(ReplicatedStorage.GameConfig:WaitForChild("WeaponConfig"))
+
 local function GetCooldown()
 	-- Read the dynamically calculated speed from the server, default to 0.5 if missing
 	return player:GetAttribute("MeleeSpeed") or 0.5
@@ -23,6 +25,16 @@ local loadedAnim: AnimationTrack? = nil
 mouse.Button1Down:Connect(function()
 	if not canAttack then return end
 	canAttack = false
+
+	local char = player.Character
+	if not char then return end
+	
+	-- Stop melee if the player is holding a gun
+	local equippedTool = char:FindFirstChildWhichIsA("Tool")
+	if equippedTool and WeaponConfig[equippedTool.Name] then 
+		canAttack = true
+		return 
+	end
 	
 	-- 1. Play the arm movement animation
 	local char = player.Character
