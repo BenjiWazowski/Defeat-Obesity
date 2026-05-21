@@ -9,6 +9,7 @@ local WaveManager = {}
 local EnemyAIService = require(script.Parent:WaitForChild("EnemyAIService"))
 local PartCache = require(ReplicatedStorage.SharedModules:WaitForChild("PartCache"))
 local StatManager = require(script.Parent.Parent.Core:WaitForChild("StatManager"))
+local SkillManager = require(script.Parent.Parent.Core:WaitForChild("SkillManager"))
 
 local MAX_ACTIVE_MONSTERS: number = 60
 local BASE_MONSTERS: number = 10
@@ -110,10 +111,24 @@ function WaveManager.EndWave()
 	-- Tell the UI to show the countdown
 	Workspace:SetAttribute("WaveState", "Intermission")
 	
-	-- Broadcast the timer every second
-	for i = INTERMISSION_TIME, 1, -1 do
-		Workspace:SetAttribute("IntermissionTime", i)
-		task.wait(1)
+	-- [[ PHASE 8: INTERMISSION & DRAFTING ]]
+	if CurrentWave > 0 and CurrentWave % 3 == 0 then
+		print("🃏 WAVE PAUSED: Skill Draft Initiated!")
+		Workspace:SetAttribute("IntermissionTime", 0) -- Freeze the UI timer
+		
+		SkillManager.TriggerGlobalDraft()
+		
+		-- Halt the entire game until every player selects a skill
+		repeat task.wait(1) until SkillManager.IsDraftComplete()
+		
+		print("🃏 Skill Draft Complete. Resuming sequence...")
+		task.wait(3) -- Give them 3 seconds to breathe after picking
+	else
+		-- Standard Intermission: Broadcast the timer every second
+		for i = INTERMISSION_TIME, 1, -1 do
+			Workspace:SetAttribute("IntermissionTime", i)
+			task.wait(1)
+		end
 	end
 	
 	WaveManager.StartWave()
