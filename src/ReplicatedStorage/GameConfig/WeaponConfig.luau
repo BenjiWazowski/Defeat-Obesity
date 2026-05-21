@@ -117,7 +117,7 @@ local WeaponConfig = {
 		HeadshotMultiplier = 1.0,
 		ProjectileType = "PhysicalTrajectory",
 		BlastRadius = 10
-	}
+	},
 	-- [[ MELEE WEAPONS ]]
 	["Barbell"] = {
 		Type = "Melee",

@@ -61,8 +61,10 @@ MeleeSwingEvent.OnServerEvent:Connect(function(player: Player)
 				-- 4. APPLY DYNAMIC DAMAGE (Multiplier Math)
 				-- Assume a base weapon damage of 35 for now (we will pull this from WeaponConfig later)
 				local baseMeleeDamage = 35 
-				-- NEW DYNAMIC DAMAGE CALCULATION
-				local baseDamage = wStats.Damage * (1 + ((activeStats.GunDamage or 0) / 100))
+				-- 4. APPLY DYNAMIC DAMAGE (Multiplier Math)
+				local baseMeleeDamage = 35 
+				local finalDamage = baseMeleeDamage * (1 + ((activeStats.MeleeDamage or 0) / 100))
+				
 				
 				monsterHumanoid:TakeDamage(finalDamage)
 				
