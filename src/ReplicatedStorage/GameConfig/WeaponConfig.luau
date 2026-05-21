@@ -118,6 +118,35 @@ local WeaponConfig = {
 		ProjectileType = "PhysicalTrajectory",
 		BlastRadius = 10
 	}
+	-- [[ MELEE WEAPONS ]]
+	["Barbell"] = {
+		Type = "Melee",
+		Damage = { Base = 80, GrowthMult = 1.3 },
+		SwingSpeed = { Base = 1, Cap = 0.6 },
+		Range = { Base = 8, Cap = 12 },
+		Knockback = 20
+	},
+	["Dumbbells"] = {
+		Type = "Melee",
+		Damage = { Base = 40, GrowthMult = 1.2 },
+		SwingSpeed = { Base = 0.3, Cap = 0.15 },
+		Range = { Base = 6, Cap = 8 },
+		Knockback = 5
+	},
+	["Kebab Skewers"] = {
+		Type = "Melee",
+		Damage = { Base = 60, GrowthMult = 1.25 },
+		SwingSpeed = { Base = 0.6, Cap = 0.3 },
+		Range = { Base = 7, Cap = 15 },
+		Knockback = 2
+	},
+	["Leg Day"] = {
+		Type = "Melee",
+		Damage = { Base = 40, GrowthMult = 1.15 },
+		SwingSpeed = { Base = 0.8, Cap = 0.4 },
+		Range = { Base = 8, Cap = 10 },
+		Knockback = 30 -- Massive knockback
+	}
 }
 
 return WeaponConfig

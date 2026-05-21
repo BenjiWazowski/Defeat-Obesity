@@ -58,8 +58,12 @@ MeleeSwingEvent.OnServerEvent:Connect(function(player: Player)
 			if monsterHumanoid and monsterHumanoid.Health > 0 then
 				monstersHit[enemyModel] = true
 				
-				-- 4. APPLY DYNAMIC DAMAGE
-				monsterHumanoid:TakeDamage(activeStats.MeleeDamage)
+				-- 4. APPLY DYNAMIC DAMAGE (Multiplier Math)
+				-- Assume a base weapon damage of 35 for now (we will pull this from WeaponConfig later)
+				local baseMeleeDamage = 35 
+				local finalDamage = baseMeleeDamage * (1 + (activeStats.MeleeDamage / 100))
+				
+				monsterHumanoid:TakeDamage(finalDamage)
 				
 				if monsterHumanoid.Health <= 0 then
 					if monsterHumanoid:GetAttribute("IsDead") then return end

@@ -37,9 +37,10 @@ local function SpawnMonster()
 	
 	local humanoid = monster:FindFirstChildWhichIsA("Humanoid")
 	if humanoid then
-		-- [[ WAVE MATH: Monster HP Scaling ]]
 		-- Monsters gain +15% compound health per wave
-		local hpMultiplier = math.pow(1.15, CurrentWave - 1)
+		-- [[ WAVE MATH: Monster HP Scaling ]]
+		-- Monsters gain +10% compound health per wave
+		local hpMultiplier = math.pow(1.10, CurrentWave - 1)
 		humanoid.MaxHealth = 100 * hpMultiplier
 		humanoid.Health = humanoid.MaxHealth
 		
