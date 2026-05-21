@@ -18,13 +18,25 @@ local cards = {
 }
 
 local isDrafting = false
+local cardConnections = {} -- Securely stores click connections
 
--- Opens the menu and populates the 3 cards
-DraftEvent.OnClientEvent:Connect(function(skillOptions: {any})
+DraftEvent.OnClientEvent:Connect(function(skillOptions: any)
+	-- Listen for the Server forcing the menu closed on timeout
+	if type(skillOptions) == "string" and skillOptions == "Close" then
+		isDrafting = false
+		draftHUD.Enabled = false
+		return
+	end
+	
 	if isDrafting then return end
 	isDrafting = true
 	
-	-- Populate the UI
+	-- Clear old connections securely
+	for _, conn in ipairs(cardConnections) do
+		conn:Disconnect()
+	end
+	table.clear(cardConnections)
+	
 	for i = 1, 3 do
 		local skillData = skillOptions[i]
 		local card = cards[i]
@@ -34,28 +46,15 @@ DraftEvent.OnClientEvent:Connect(function(skillOptions: {any})
 		
 		nameLabel.Text = skillData.Name
 		descLabel.Text = skillData.Description
+		nameLabel.TextColor3 = skillData.Rarity == "Epic" and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(255, 255, 255)
 		
-		-- Color code by rarity
-		if skillData.Rarity == "Epic" then
-			nameLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold
-		else
-			nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- White
-		end
-		
-		-- Clean up old connections if they exist
-		for _, conn in ipairs(card:GetConnections("MouseButton1Click")) do
-			conn:Disconnect()
-		end
-		
-		-- Listen for player choice
-		card.MouseButton1Click:Connect(function()
+		local conn = card.MouseButton1Click:Connect(function()
 			if not isDrafting then return end
 			isDrafting = false
 			draftHUD.Enabled = false
-			
-			-- Tell the server which skill we picked
 			DraftEvent:FireServer(skillData.Name)
 		end)
+		table.insert(cardConnections, conn)
 	end
 	
 	draftHUD.Enabled = true

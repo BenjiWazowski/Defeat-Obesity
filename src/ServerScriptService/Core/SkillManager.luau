@@ -106,6 +106,41 @@ DraftEvent.OnServerEvent:Connect(function(player: Player, skillName: string)
 	end
 end)
 
+-- [[ 3. AUTO-DRAFT TIMEOUT ]]
+function SkillManager.ForceEndDraft()
+	for userId, choices in pairs(ActiveDrafts) do
+		local player = Players:GetPlayerByUserId(userId)
+		if player then
+			-- Pick a random skill from their 3 choices
+			local randChoice = choices[math.random(1, #choices)]
+			
+			local currentStacks = player:GetAttribute("Skill_" .. randChoice.Name) or 0
+			player:SetAttribute("Skill_" .. randChoice.Name, currentStacks + 1)
+			print("🎲 " .. player.Name .. " auto-drafted: [" .. randChoice.Name .. "] (Timeout)")
+			
+			-- Grant weapon if applicable
+			local skillData = SkillConfig[randChoice.Name]
+			if skillData and skillData.WeaponGrant then
+				local weaponFolder = ReplicatedStorage:FindFirstChild("Weapons")
+				if weaponFolder then
+					local weaponToGive = weaponFolder:FindFirstChild(skillData.WeaponGrant)
+					if weaponToGive then
+						local clone = weaponToGive:Clone()
+						clone.Parent = player:WaitForChild("Backpack")
+					end
+				end
+			end
+			
+			-- Tell their UI to close
+			DraftEvent:FireClient(player, "Close")
+		end
+	end
+	
+	-- Clear all locks
+	ActiveDrafts = {}
+	PlayersDrafting = 0
+end
+
 -- Clean up if a player leaves mid-draft so the wave doesn't pause forever
 Players.PlayerRemoving:Connect(function(player)
 	if ActiveDrafts[player.UserId] then

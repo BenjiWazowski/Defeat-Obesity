@@ -14,7 +14,7 @@ local SkillManager = require(script.Parent.Parent.Core:WaitForChild("SkillManage
 local MAX_ACTIVE_MONSTERS: number = 60
 local BASE_MONSTERS: number = 10
 local WAVE_MULTIPLIER: number = 1.25
-local INTERMISSION_TIME: number = 10
+local INTERMISSION_TIME: number = 15
 
 local CurrentWave: number = 0
 local TotalWaveQuota: number = 0
@@ -107,24 +107,31 @@ end
 function WaveManager.EndWave()
 	WaveInProgress = false
 	print("✅ Wave " .. CurrentWave .. " Cleared!")
-	
-	-- Tell the UI to show the countdown
 	Workspace:SetAttribute("WaveState", "Intermission")
 	
-	-- [[ PHASE 8: INTERMISSION & DRAFTING ]]
-	if CurrentWave > 0 and CurrentWave % 3 == 0 then
+	-- EVERY 2 WAVES
+	if CurrentWave > 0 and CurrentWave % 2 == 0 then
 		print("🃏 WAVE PAUSED: Skill Draft Initiated!")
-		Workspace:SetAttribute("IntermissionTime", 0) -- Freeze the UI timer
-		
 		SkillManager.TriggerGlobalDraft()
 		
-		-- Halt the entire game until every player selects a skill
-		repeat task.wait(1) until SkillManager.IsDraftComplete()
+		-- 25 Second Timeout Loop
+		local draftTime = 25
+		while not SkillManager.IsDraftComplete() and draftTime > 0 do
+			Workspace:SetAttribute("IntermissionTime", draftTime)
+			task.wait(1)
+			draftTime -= 1
+		end
+		
+		-- If players are STILL drafting after 25 seconds, force it.
+		if not SkillManager.IsDraftComplete() then
+			print("⏰ Draft time expired! Auto-selecting skills...")
+			SkillManager.ForceEndDraft()
+		end
 		
 		print("🃏 Skill Draft Complete. Resuming sequence...")
-		task.wait(3) -- Give them 3 seconds to breathe after picking
+		task.wait(3) 
 	else
-		-- Standard Intermission: Broadcast the timer every second
+		-- Standard 15 second intermission
 		for i = INTERMISSION_TIME, 1, -1 do
 			Workspace:SetAttribute("IntermissionTime", i)
 			task.wait(1)
