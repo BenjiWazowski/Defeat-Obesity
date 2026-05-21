@@ -12,22 +12,26 @@ local ActiveDrafts = {}
 local PlayersDrafting = 0
 
 -- [[ 1. DRAFT GENERATOR ]]
+-- Helper function to make names safe for Roblox Attributes
+local function GetSafeAttributeName(skillName: string)
+	return "Skill_" .. string.gsub(skillName, " ", "")
+end
+
 function SkillManager.TriggerGlobalDraft()
 	PlayersDrafting = 0
 	
 	for _, player in ipairs(Players:GetPlayers()) do
-		local availableSkills = {}
+		local commons = {}
+		local epics = {}
 		
-		-- Filter out maxed skills and duplicate Legendary weapons
+		-- Separate the skills by rarity
 		for skillName, skillData in pairs(SkillConfig) do
-			local currentStacks = player:GetAttribute("Skill_" .. skillName) or 0
+			local attrName = GetSafeAttributeName(skillName)
+			local currentStacks = player:GetAttribute(attrName) or 0
 			local canDraft = true
 			
-			if currentStacks >= skillData.MaxStacks then
-				canDraft = false
-			end
+			if currentStacks >= skillData.MaxStacks then canDraft = false end
 			
-			-- Don't offer a legendary weapon if they already hold it
 			if skillData.WeaponGrant then
 				local char = player.Character
 				local backpack = player:FindFirstChild("Backpack")
@@ -37,23 +41,31 @@ function SkillManager.TriggerGlobalDraft()
 			end
 			
 			if canDraft then
-				table.insert(availableSkills, {Name = skillName, Data = skillData})
+				if skillData.Rarity == "Common" then
+					table.insert(commons, {Name = skillName, Data = skillData})
+				else
+					table.insert(epics, {Name = skillName, Data = skillData})
+				end
 			end
 		end
 		
-		-- Shuffle and pick 3
 		local choices = {}
 		for i = 1, 3 do
-			if #availableSkills == 0 then break end
-			local randIdx = math.random(1, #availableSkills)
-			local picked = availableSkills[randIdx]
+			-- 90% chance for Common, 10% for Epic
+			local isEpicRoll = math.random() <= 0.10
+			local pool = (isEpicRoll and #epics > 0) and epics or commons
+			if #pool == 0 then pool = (#commons > 0 and commons or epics) end -- Fallback if empty
+			if #pool == 0 then break end
+			
+			local randIdx = math.random(1, #pool)
+			local picked = pool[randIdx]
 			
 			table.insert(choices, {
 				Name = picked.Name,
 				Description = picked.Data.Description,
-				Rarity = picked.Data.Rarity
+				Rarity = picked.Data.Data.Rarity
 			})
-			table.remove(availableSkills, randIdx)
+			table.remove(pool, randIdx)
 		end
 		
 		if #choices > 0 then
@@ -74,33 +86,27 @@ DraftEvent.OnServerEvent:Connect(function(player: Player, skillName: string)
 	local choices = ActiveDrafts[player.UserId]
 	if not choices then return end
 	
-	-- Anti-Exploit: Verify they actually picked one of their 3 options
 	local isValid = false
 	for _, choice in ipairs(choices) do
 		if choice.Name == skillName then isValid = true; break end
 	end
-	
 	if not isValid then return end
 	
-	-- Lock their choice in
 	ActiveDrafts[player.UserId] = nil
 	PlayersDrafting -= 1
 	
-	local currentStacks = player:GetAttribute("Skill_" .. skillName) or 0
-	player:SetAttribute("Skill_" .. skillName, currentStacks + 1)
-	
+	local attrName = GetSafeAttributeName(skillName)
+	local currentStacks = player:GetAttribute(attrName) or 0
+	player:SetAttribute(attrName, currentStacks + 1)
 	print("🃏 " .. player.Name .. " drafted: [" .. skillName .. "] (Stack " .. (currentStacks + 1) .. ")")
 	
-	-- [[ HANDLE EPIC WEAPON GRANTS ]]
 	local skillData = SkillConfig[skillName]
 	if skillData and skillData.WeaponGrant then
-		-- We will store Legendary weapons in ReplicatedStorage.Weapons
 		local weaponFolder = ReplicatedStorage:FindFirstChild("Weapons")
 		if weaponFolder then
 			local weaponToGive = weaponFolder:FindFirstChild(skillData.WeaponGrant)
 			if weaponToGive then
-				local clone = weaponToGive:Clone()
-				clone.Parent = player:WaitForChild("Backpack")
+				weaponToGive:Clone().Parent = player:WaitForChild("Backpack")
 			end
 		end
 	end
@@ -111,30 +117,29 @@ function SkillManager.ForceEndDraft()
 	for userId, choices in pairs(ActiveDrafts) do
 		local player = Players:GetPlayerByUserId(userId)
 		if player then
-			-- Pick a random skill from their 3 choices
 			local randChoice = choices[math.random(1, #choices)]
 			
-			local currentStacks = player:GetAttribute("Skill_" .. randChoice.Name) or 0
-			player:SetAttribute("Skill_" .. randChoice.Name, currentStacks + 1)
+			local attrName = GetSafeAttributeName(randChoice.Name)
+			local currentStacks = player:GetAttribute(attrName) or 0
+			player:SetAttribute(attrName, currentStacks + 1)
 			print("🎲 " .. player.Name .. " auto-drafted: [" .. randChoice.Name .. "] (Timeout)")
 			
-			-- Grant weapon if applicable
 			local skillData = SkillConfig[randChoice.Name]
 			if skillData and skillData.WeaponGrant then
 				local weaponFolder = ReplicatedStorage:FindFirstChild("Weapons")
 				if weaponFolder then
 					local weaponToGive = weaponFolder:FindFirstChild(skillData.WeaponGrant)
 					if weaponToGive then
-						local clone = weaponToGive:Clone()
-						clone.Parent = player:WaitForChild("Backpack")
+						weaponToGive:Clone().Parent = player:WaitForChild("Backpack")
 					end
 				end
 			end
-			
-			-- Tell their UI to close
 			DraftEvent:FireClient(player, "Close")
 		end
 	end
+	ActiveDrafts = {}
+	PlayersDrafting = 0
+end
 	
 	-- Clear all locks
 	ActiveDrafts = {}

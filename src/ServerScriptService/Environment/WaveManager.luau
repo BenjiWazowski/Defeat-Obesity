@@ -109,7 +109,12 @@ function WaveManager.EndWave()
 	print("✅ Wave " .. CurrentWave .. " Cleared!")
 	Workspace:SetAttribute("WaveState", "Intermission")
 	
-	-- EVERY 2 WAVES
+	-- 1. Three seconds of pure cooldown after the last monster dies
+	Workspace:SetAttribute("IntermissionTime", 0)
+	print("⏳ Wave cleared. 3 second cooldown...")
+	task.wait(3)
+	
+	-- 2. NOW we begin the Draft or the Standard Countdown
 	if CurrentWave > 0 and CurrentWave % 2 == 0 then
 		print("🃏 WAVE PAUSED: Skill Draft Initiated!")
 		SkillManager.TriggerGlobalDraft()
@@ -122,14 +127,13 @@ function WaveManager.EndWave()
 			draftTime -= 1
 		end
 		
-		-- If players are STILL drafting after 25 seconds, force it.
 		if not SkillManager.IsDraftComplete() then
 			print("⏰ Draft time expired! Auto-selecting skills...")
 			SkillManager.ForceEndDraft()
 		end
 		
 		print("🃏 Skill Draft Complete. Resuming sequence...")
-		task.wait(3) 
+		task.wait(1) 
 	else
 		-- Standard 15 second intermission
 		for i = INTERMISSION_TIME, 1, -1 do

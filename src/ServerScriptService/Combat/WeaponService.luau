@@ -245,8 +245,10 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 					if monsterHumanoid and monsterHumanoid.Health > 0 then
 						
 						local finalDamage = baseDamage
+						local isHeadshot = false
 						if hitPart.Name == "Head" then
 							finalDamage = finalDamage * config.HeadshotMultiplier
+							isHeadshot = true
 						end
 						
 						monsterHumanoid:TakeDamage(finalDamage)
@@ -255,6 +257,40 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 							if monsterHumanoid:GetAttribute("IsDead") then continue end
 							monsterHumanoid:SetAttribute("IsDead", true)
 							local profile = DataService.GetProfile(player)
+							
+							-- EPIC SKILL: Exploding Headshots
+							local ehStacks = player:GetAttribute("Skill_ExplodingHeadshots") or 0
+							if ehStacks > 0 and isHeadshot then
+								local SkillConfig = require(ReplicatedStorage.GameConfig.SkillConfig)
+								local expMath = SkillConfig["Exploding Headshots"].ExplosionMath
+								
+								local visualExp = Instance.new("Explosion")
+								visualExp.Position = hitPart.Position
+								visualExp.BlastRadius = expMath.BlastRadius
+								visualExp.BlastPressure = 0
+								visualExp.Parent = Workspace
+								
+								local explosionDamage = monsterHumanoid.MaxHealth * expMath.DamagePercent
+								
+								local partsInRadius = Workspace:GetPartBoundsInRadius(hitPart.Position, expMath.BlastRadius)
+								local hitTargets = {} 
+								for _, p in ipairs(partsInRadius) do
+									local m = p:FindFirstAncestorWhichIsA("Model")
+									if m and string.find(m.Name, "ObesityMonster") and not hitTargets[m] then
+										hitTargets[m] = true
+										local h = m:FindFirstChild("Humanoid") :: Humanoid
+										if h and h.Health > 0 then
+											h:TakeDamage(explosionDamage)
+											if h.Health <= 0 and not h:GetAttribute("IsDead") then
+												h:SetAttribute("IsDead", true)
+												if profile then profile.Data.Sausages += expMath.BonusSausages end
+												DropService.RollForDrop(m.PrimaryPart.Position, player)
+											end
+										end
+									end
+								end
+							end
+							
 							if profile then
 								profile.Data.Sausages += 1
 								player:SetAttribute("Sausages", profile.Data.Sausages)

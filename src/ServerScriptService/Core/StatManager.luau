@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 
 local DataService = require(script.Parent:WaitForChild("DataService"))
 local ClassModifiers = require(ReplicatedStorage.GameConfig:WaitForChild("ClassModifiers"))
+local SkillConfig = require(ReplicatedStorage.GameConfig:WaitForChild("SkillConfig"))
 
 local StatManager = {}
 
@@ -41,6 +42,26 @@ function StatManager.CalculateStats(player: Player, currentWave: number)
 		end
 	end
 	
+	-- 3.5 APPLY ROGUELITE SKILLS (Phase 8)
+	for skillName, skillData in pairs(SkillConfig) do
+		local safeName = "Skill_" .. string.gsub(skillName, " ", "")
+		local stacks = player:GetAttribute(safeName) or 0
+		if stacks > 0 and skillData.Effects then
+			for statName, boostValue in pairs(skillData.Effects) do
+				if activeStats[statName] then
+					-- Treat Health, Ammo, Speed, and Range as % multipliers (e.g., 10 means +10%)
+					if statName == "Health" or statName == "AmmoCapacity" or statName == "MovementSpeed" or statName == "MeleeRange" then
+						local multiplier = 1 + ((boostValue * stacks) / 100)
+						activeStats[statName] = activeStats[statName] * multiplier
+					else
+						-- Damage, SwingSpeed, etc., get flat stat points added
+						activeStats[statName] += (boostValue * stacks)
+					end
+				end
+			end
+		end
+	end
+
 	-- 4. DEGENERATE GUY OVERRIDE (The Gamble)
 	if className == "Gamble Guy" then
 		local multiplier = math.random(80, 200) / 100 
