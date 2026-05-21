@@ -1,4 +1,26 @@
 --!strict
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- 1. CREATE NETWORK EVENTS BEFORE ANYTHING ELSE LOADS
+local NetworkEvents = ReplicatedStorage:FindFirstChild("NetworkEvents")
+if not NetworkEvents then
+	NetworkEvents = Instance.new("Folder")
+	NetworkEvents.Name = "NetworkEvents"
+	NetworkEvents.Parent = ReplicatedStorage
+end
+
+local function EnsureEventExists(eventName: string)
+	local event = NetworkEvents:FindFirstChild(eventName) or Instance.new("RemoteEvent")
+	event.Name = eventName
+	event.Parent = NetworkEvents
+end
+
+EnsureEventExists("ShootEvent")
+EnsureEventExists("ReloadEvent")
+EnsureEventExists("DraftEvent")
+EnsureEventExists("MeleeSwingEvent")
+
 print("====================================")
 print("[Bootstrapper] Igniting Server Services...")
 print("====================================")
