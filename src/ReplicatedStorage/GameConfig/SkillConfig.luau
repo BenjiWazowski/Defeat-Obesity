@@ -40,16 +40,16 @@ local SkillConfig = {
 	},
 	["Melee Range Increase"] = {
 		Rarity = "Common",
-		Description = "Increases Melee Hitbox size by 5%.",
-		MaxStacks = 15,
+		Description = "Increases Melee Hitbox size by 10%.",
+		MaxStacks = 50,
 		Effects = {
-			MeleeRange = 5
+			MeleeRange = 10
 		}
 	},
 	["Clip Size Increase"] = {
 		Rarity = "Common",
 		Description = "Increases Ammo Capacity by 10%.",
-		MaxStacks = 10,
+		MaxStacks = 50,
 		Effects = {
 			AmmoCapacity = 10
 		}
@@ -95,7 +95,7 @@ local SkillConfig = {
 		MaxStacks = 999, -- Infinite. Each stack increases proc chance
 		ThunderMath = {
 			BaseProcChance = 0.15, -- 15% chance to strike
-			ProcChancePerStack = 0.05, -- +5% chance per extra time you pick this skill
+			ProcChancePerStack = 0.02, -- +2% chance per extra time you pick this skill
 			NormalMobDamage = 1.00, -- 100% Max HP (Instakill)
 			EliteDamage = 0.20, -- 20% Max HP
 			BossDamage = 0.10 -- 10% Max HP
@@ -108,7 +108,7 @@ local SkillConfig = {
 		ExplosionMath = {
 			BlastRadius = 15, -- Studs
 			DamagePercent = 0.55, -- Deals 55% of the dead enemy's max HP
-			BonusSausages = 1 -- Extra sausage per enemy killed in the blast
+			BonusSausages = 2 -- Extra sausage per enemy killed in the blast
 		}
 	},
 	["Damage Increase ++"] = {
