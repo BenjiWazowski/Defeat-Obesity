@@ -26,27 +26,33 @@ local ReloadEvent = NetworkEvents:FindFirstChild("ReloadEvent") or Instance.new(
 ReloadEvent.Name = "ReloadEvent"
 ReloadEvent.Parent = NetworkEvents
 
+local DraftEvent = NetworkEvents:FindFirstChild("DraftEvent") or Instance.new("RemoteEvent")
+DraftEvent.Name = "DraftEvent"
+DraftEvent.Parent = NetworkEvents
+
 local PlayerCooldowns = {}
 local ReloadingPlayers = {} 
 
--- Helper function to calculate a weapon's current wave stats dynamically
+
+-- [[ MATH ENGINE (Client Mirror) ]]
 local function GetWeaponStats(weaponName: string, currentWave: number)
 	local config = WeaponConfig[weaponName]
 	local stats = {}
 	local decayRate = 0.1
 	
-	-- Exponential Damage Growth
 	stats.Damage = config.Damage.Base * math.pow(config.Damage.GrowthMult, currentWave - 1)
 	
-	-- Diminishing Caps for everything else
-	stats.ClipSize = math.floor(config.ClipSize.Cap - ((config.ClipSize.Cap - config.ClipSize.Base) * math.pow(1 - decayRate, currentWave - 1)))
-	stats.ReserveClips = math.floor(config.ReserveClips.Cap - ((config.ReserveClips.Cap - config.ReserveClips.Base) * math.pow(1 - decayRate, currentWave - 1)))
-	stats.FireRate = config.FireRate.Cap - ((config.FireRate.Cap - config.FireRate.Base) * math.pow(1 - decayRate, currentWave - 1))
-	stats.ReloadSpeed = config.ReloadSpeed.Cap - ((config.ReloadSpeed.Cap - config.ReloadSpeed.Base) * math.pow(1 - decayRate, currentWave - 1))
-	
-	stats.TotalReserveAmmo = stats.ClipSize * stats.ReserveClips
-	if weaponName == "Glizzy shooter" then
-		stats.TotalReserveAmmo = stats.ReserveClips -- LMG uses raw numbers instead of clips
+	-- SAFEGUARD: Only calculate ammo/reload if it's a gun!
+	if config.Type ~= "Melee" then
+		stats.ClipSize = math.floor(config.ClipSize.Cap - ((config.ClipSize.Cap - config.ClipSize.Base) * math.pow(1 - decayRate, currentWave - 1)))
+		stats.ReserveClips = math.floor(config.ReserveClips.Cap - ((config.ReserveClips.Cap - config.ReserveClips.Base) * math.pow(1 - decayRate, currentWave - 1)))
+		stats.FireRate = config.FireRate.Cap - ((config.FireRate.Cap - config.FireRate.Base) * math.pow(1 - decayRate, currentWave - 1))
+		stats.ReloadSpeed = config.ReloadSpeed.Cap - ((config.ReloadSpeed.Cap - config.ReloadSpeed.Base) * math.pow(1 - decayRate, currentWave - 1))
+		
+		stats.TotalReserveAmmo = stats.ClipSize * stats.ReserveClips
+		if weaponName == "Glizzy shooter" then
+			stats.TotalReserveAmmo = stats.ReserveClips 
+		end
 	end
 	
 	return stats
@@ -143,7 +149,8 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 	end
 	
 	-- NEW MULTIPLIER MATH: 1 Stat Point = +1% Damage
-	local baseDamage = wStats.Damage * (1 + (activeStats.GunDamage / 100))
+	-- NEW DYNAMIC DAMAGE CALCULATION
+	local baseDamage = wStats.Damage * (1 + ((activeStats.GunDamage or 0) / 100))
 	local isExplosive = config.ProjectileType == "PhysicalObject" or config.ProjectileType == "PhysicalTrajectory"
 	
 	-- [[ EXPLOSIVES BRANCH ]]

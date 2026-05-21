@@ -17,22 +17,26 @@ local isReloading = false
 local lastShot = 0
 
 -- [[ MATH ENGINE (Client Mirror) ]]
--- This calculates the exact same stats as the server so the Client knows the true FireRate
 local function GetWeaponStats(weaponName: string, currentWave: number)
 	local config = WeaponConfig[weaponName]
 	local stats = {}
 	local decayRate = 0.1
 	
 	stats.Damage = config.Damage.Base * math.pow(config.Damage.GrowthMult, currentWave - 1)
-	stats.ClipSize = math.floor(config.ClipSize.Cap - ((config.ClipSize.Cap - config.ClipSize.Base) * math.pow(1 - decayRate, currentWave - 1)))
-	stats.ReserveClips = math.floor(config.ReserveClips.Cap - ((config.ReserveClips.Cap - config.ReserveClips.Base) * math.pow(1 - decayRate, currentWave - 1)))
-	stats.FireRate = config.FireRate.Cap - ((config.FireRate.Cap - config.FireRate.Base) * math.pow(1 - decayRate, currentWave - 1))
-	stats.ReloadSpeed = config.ReloadSpeed.Cap - ((config.ReloadSpeed.Cap - config.ReloadSpeed.Base) * math.pow(1 - decayRate, currentWave - 1))
 	
-	stats.TotalReserveAmmo = stats.ClipSize * stats.ReserveClips
-	if weaponName == "Glizzy shooter" then
-		stats.TotalReserveAmmo = stats.ReserveClips 
+	-- SAFEGUARD: Only calculate ammo/reload if it's a gun!
+	if config.Type ~= "Melee" then
+		stats.ClipSize = math.floor(config.ClipSize.Cap - ((config.ClipSize.Cap - config.ClipSize.Base) * math.pow(1 - decayRate, currentWave - 1)))
+		stats.ReserveClips = math.floor(config.ReserveClips.Cap - ((config.ReserveClips.Cap - config.ReserveClips.Base) * math.pow(1 - decayRate, currentWave - 1)))
+		stats.FireRate = config.FireRate.Cap - ((config.FireRate.Cap - config.FireRate.Base) * math.pow(1 - decayRate, currentWave - 1))
+		stats.ReloadSpeed = config.ReloadSpeed.Cap - ((config.ReloadSpeed.Cap - config.ReloadSpeed.Base) * math.pow(1 - decayRate, currentWave - 1))
+		
+		stats.TotalReserveAmmo = stats.ClipSize * stats.ReserveClips
+		if weaponName == "Glizzy shooter" then
+			stats.TotalReserveAmmo = stats.ReserveClips 
+		end
 	end
+	
 	return stats
 end
 
