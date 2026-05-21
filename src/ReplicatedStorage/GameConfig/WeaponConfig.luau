@@ -6,7 +6,7 @@
 local WeaponConfig = {
 	["Dual meatBALLS shooters"] = {
 		Type = "SemiAuto",
-		Damage = { Base = 20, GrowthMult = 1.14 }, -- Slightly slower than monster HP growth
+		Damage = { Base = 20, GrowthMult = 1.115 }, -- Slightly slower than monster HP growth
 		FireRate = { Base = 0.5, Cap = 0.1 },
 		ClipSize = { Base = 20, Cap = 200 },
 		ReserveClips = { Base = 4, Cap = 6 },
@@ -17,7 +17,7 @@ local WeaponConfig = {
 	},
 	["Desert Bagel"] = {
 		Type = "SemiAuto",
-		Damage = { Base = 50, GrowthMult = 1.13 },
+		Damage = { Base = 50, GrowthMult = 1.117 },
 		FireRate = { Base = 0.8, Cap = 0.4 },
 		ClipSize = { Base = 6, Cap = 36 },
 		ReserveClips = { Base = 4, Cap = 6 },
@@ -28,7 +28,7 @@ local WeaponConfig = {
 	},
 	["AK 67"] = {
 		Type = "Auto",
-		Damage = { Base = 25, GrowthMult = 1.135 },
+		Damage = { Base = 25, GrowthMult = 1.115 },
 		FireRate = { Base = 0.2, Cap = 0.1 },
 		ClipSize = { Base = 25, Cap = 300 },
 		ReserveClips = { Base = 4, Cap = 6 },
@@ -39,7 +39,7 @@ local WeaponConfig = {
 	},
 	["MP 67"] = {
 		Type = "Auto",
-		Damage = { Base = 21, GrowthMult = 1.13 },
+		Damage = { Base = 21, GrowthMult = 1.11 },
 		FireRate = { Base = 0.15, Cap = 0.08 },
 		ClipSize = { Base = 30, Cap = 400 },
 		ReserveClips = { Base = 4, Cap = 6 },
@@ -50,7 +50,7 @@ local WeaponConfig = {
 	},
 	["Explosive Poop"] = {
 		Type = "AutoShotgun",
-		Damage = { Base = 10, GrowthMult = 1.14 },
+		Damage = { Base = 10, GrowthMult = 1.12 },
 		PelletCount = 12,
 		FireRate = { Base = 0.6, Cap = 0.25 },
 		ClipSize = { Base = 8, Cap = 48 },
@@ -62,7 +62,7 @@ local WeaponConfig = {
 	},
 	["Sprinkle Sesame"] = {
 		Type = "SemiAuto", -- Pump
-		Damage = { Base = 7, GrowthMult = 1.15 },
+		Damage = { Base = 7, GrowthMult = 1.135 },
 		PelletCount = 24,
 		FireRate = { Base = 0.05, Cap = 0.05 }, -- Shoots as fast as you click
 		ClipSize = { Base = 2, Cap = 2 },
@@ -74,7 +74,7 @@ local WeaponConfig = {
 	},
 	["Glizzy shooter"] = {
 		Type = "LMG",
-		Damage = { Base = 15, GrowthMult = 1.135 },
+		Damage = { Base = 15, GrowthMult = 1.10 },
 		FireRate = { Base = 0.3, Cap = 0.05 }, -- Spin up
 		ClipSize = { Base = 0, Cap = 0 }, -- Doesn't use clips
 		ReserveClips = { Base = 200, Cap = 2500 }, -- Raw ammo count

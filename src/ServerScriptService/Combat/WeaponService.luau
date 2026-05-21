@@ -142,7 +142,8 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 		equippedTool:SetAttribute("CurrentAmmo", currentAmmo - 1)
 	end
 	
-	local baseDamage = wStats.Damage + (activeStats.GunDamage * 0.5)
+	-- NEW MULTIPLIER MATH: 1 Stat Point = +1% Damage
+	local baseDamage = wStats.Damage * (1 + (activeStats.GunDamage / 100))
 	local isExplosive = config.ProjectileType == "PhysicalObject" or config.ProjectileType == "PhysicalTrajectory"
 	
 	-- [[ EXPLOSIVES BRANCH ]]
