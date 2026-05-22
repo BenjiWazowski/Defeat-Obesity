@@ -70,7 +70,11 @@ end)
 -- [[ EVENT LISTENERS ]]
 Workspace:GetAttributeChangedSignal("CurrentWave"):Connect(function()
 	local currentWave = Workspace:GetAttribute("CurrentWave") or 0
-	waveLabel.Text = "WAVE " .. tostring(currentWave)
+	if type(currentWave) == "string" then
+		waveLabel.Text = currentWave
+	else
+		waveLabel.Text = "WAVE " .. tostring(currentWave)
+	end
 end)
 
 -- Countdown Logic
@@ -83,7 +87,12 @@ Workspace:GetAttributeChangedSignal("WaveState"):Connect(function()
 end)
 
 Workspace:GetAttributeChangedSignal("IntermissionTime"):Connect(function()
-	countdownLabel.Text = "Starting in " .. tostring(Workspace:GetAttribute("IntermissionTime") or 0)
+	local timeVal = Workspace:GetAttribute("IntermissionTime") or 0
+	if type(timeVal) == "string" then
+		countdownLabel.Text = timeVal
+	else
+		countdownLabel.Text = "Starting in " .. tostring(timeVal)
+	end
 end)
 
 player:GetAttributeChangedSignal("Sausages"):Connect(function()

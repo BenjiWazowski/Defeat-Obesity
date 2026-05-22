@@ -17,10 +17,9 @@ local Queue: {Player} = {}
 local CountdownActive: boolean = false
 local Teleporting: boolean = false
 
--- [[ HELPER FUNCTIONS ]]
 local function UpdateUI()
-	-- In the future, we will fire a RemoteEvent here to update a GUI 
-	-- showing "Queue: 2/4 | Starting in 10s"
+	-- Tell the HUD the current queue size
+	Workspace:SetAttribute("CurrentWave", "QUEUE: " .. #Queue .. "/" .. MAX_PLAYERS)
 	print("[Matchmaking] Queue Size: " .. #Queue)
 end
 
@@ -33,8 +32,6 @@ local function RemovePlayerFromQueue(player: Player)
 	end
 end
 
-local DataService = require(script.Parent:WaitForChild("DataService"))
-
 local function ExecuteTeleport()
 	if #Queue < REQUIRED_PLAYERS then
 		print("[Matchmaking] Not enough players to start.")
@@ -44,11 +41,11 @@ local function ExecuteTeleport()
 
 	Teleporting = true
 	print("[Matchmaking] Reserving server and teleporting players...")
+	Workspace:SetAttribute("IntermissionTime", "TELEPORTING...")
 
 	local success, errorMessage = pcall(function()
 		local reservedServerCode = TeleportService:ReserveServer(ARENA_PLACE_ID)
 		
-		-- SAFE DATA HANDOFF: Forcefully save and unlock data BEFORE teleporting
 		for _, player in ipairs(Queue) do
 			local profile = DataService.GetProfile(player)
 			if profile then
@@ -67,21 +64,27 @@ local function ExecuteTeleport()
 		warn("[Matchmaking] Teleport failed: " .. tostring(errorMessage))
 		Teleporting = false
 		Queue = {} 
+		Workspace:SetAttribute("IntermissionTime", "TELEPORT FAILED")
+		task.wait(3)
+		UpdateUI()
 	end
 end
 
 local function StartCountdown()
 	if CountdownActive or Teleporting then return end
 	CountdownActive = true
+	
+	Workspace:SetAttribute("WaveState", "Intermission")
 
 	task.spawn(function()
 		for i = COUNTDOWN_TIME, 1, -1 do
 			if #Queue == 0 then
 				print("[Matchmaking] Queue empty. Countdown aborted.")
+				Workspace:SetAttribute("WaveState", "Active") -- Hides the timer
 				CountdownActive = false
 				return
 			end
-			-- print("[Matchmaking] Teleporting in " .. i .. " seconds...")
+			Workspace:SetAttribute("IntermissionTime", i)
 			task.wait(1)
 		end
 		ExecuteTeleport()
