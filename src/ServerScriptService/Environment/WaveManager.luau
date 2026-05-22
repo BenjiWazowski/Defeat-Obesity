@@ -12,9 +12,9 @@ local StatManager = require(script.Parent.Parent.Core:WaitForChild("StatManager"
 local SkillManager = require(script.Parent.Parent.Core:WaitForChild("SkillManager"))
 
 local MAX_ACTIVE_MONSTERS: number = 60
-local BASE_MONSTERS: number = 10
-local WAVE_MULTIPLIER: number = 1.25
-local INTERMISSION_TIME: number = 15
+local BASE_MONSTERS: number = 1
+local WAVE_MULTIPLIER: number = 1
+local INTERMISSION_TIME: number = 5
 
 local CurrentWave: number = 0
 local TotalWaveQuota: number = 0
@@ -109,6 +109,8 @@ function WaveManager.EndWave()
 	print("✅ Wave " .. CurrentWave .. " Cleared!")
 	Workspace:SetAttribute("WaveState", "Intermission")
 	
+	Workspace:SetAttribute("CurrentWave", CurrentWave + 1)
+
 	-- 1. Three seconds of pure cooldown after the last monster dies
 	Workspace:SetAttribute("IntermissionTime", 0)
 	print("⏳ Wave cleared. 3 second cooldown...")
@@ -167,6 +169,7 @@ function WaveManager.InitializeArena()
 	
 	-- Initial boot countdown
 	Workspace:SetAttribute("WaveState", "Intermission")
+	Workspace:SetAttribute("CurrentWave", 1)
 	for i = 5, 1, -1 do
 		Workspace:SetAttribute("IntermissionTime", i)
 		task.wait(1)
