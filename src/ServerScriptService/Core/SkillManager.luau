@@ -63,7 +63,7 @@ function SkillManager.TriggerGlobalDraft()
 			table.insert(choices, {
 				Name = picked.Name,
 				Description = picked.Data.Description,
-				Rarity = picked.Data.Data.Rarity
+				Rarity = picked.Data.Rarity
 			})
 			table.remove(pool, randIdx)
 		end
