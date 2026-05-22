@@ -40,7 +40,10 @@ local function PlayerAdded(player: Player)
 		-- ProfileStore uses OnSessionEnd instead of ListenToRelease
 		profile.OnSessionEnd:Connect(function()
 			DataService.Profiles[player] = nil
-			player:Kick("Data session was terminated. Please rejoin.")
+			-- Only kick them if they aren't in the middle of a teleport
+			if not player:GetAttribute("IsTeleporting") then
+				player:Kick("Data session was terminated. Please rejoin.")
+			end
 		end)
 		
 		if player:IsDescendantOf(Players) == true then

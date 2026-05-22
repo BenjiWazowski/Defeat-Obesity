@@ -54,6 +54,9 @@ local function ExecuteTeleport()
 		
 		local DataService = require(script.Parent:WaitForChild("DataService"))
 		for _, player in ipairs(Queue) do
+			-- TAG THE PLAYER SO THEY DON'T GET KICKED
+			player:SetAttribute("IsTeleporting", true)
+			
 			local profile = DataService.GetProfile(player)
 			if profile then profile:EndSession() end
 		end
@@ -66,6 +69,10 @@ local function ExecuteTeleport()
 	if not success then
 		warn("[Matchmaking] Teleport failed: " .. tostring(errorMessage))
 		Teleporting = false
+		-- Remove the tag if the teleport fails
+		for _, player in ipairs(Queue) do
+			player:SetAttribute("IsTeleporting", nil)
+		end
 		Queue = {} 
 		statusText.Text = "Failed!"
 		statusText.TextColor3 = Color3.fromRGB(255, 100, 100)
