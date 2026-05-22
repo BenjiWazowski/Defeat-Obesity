@@ -59,27 +59,77 @@ MeleeSwingEvent.OnServerEvent:Connect(function(player: Player)
 				monstersHit[enemyModel] = true
 				
 				-- 4. APPLY DYNAMIC DAMAGE (Multiplier Math)
-				-- Assume a base weapon damage of 35 for now (we will pull this from WeaponConfig later)
-				local baseMeleeDamage = 35 
-				-- 4. APPLY DYNAMIC DAMAGE (Multiplier Math)
 				local baseMeleeDamage = 35 
 				local finalDamage = baseMeleeDamage * (1 + ((activeStats.MeleeDamage or 0) / 100))
 				
-				
 				monsterHumanoid:TakeDamage(finalDamage)
 				
+				-- ==========================================
+				-- [[ EPIC SKILLS: ON-HIT EFFECTS ]]
+				-- ==========================================
+				if monsterHumanoid.Health > 0 then
+					local SkillConfig = require(ReplicatedStorage.GameConfig.SkillConfig)
+					
+					-- 1. THUNDER STRIKE
+					local tsStacks = player:GetAttribute("Skill_ThunderStrike") or 0
+					if tsStacks > 0 then
+						local tMath = SkillConfig["Thunder Strike"].ThunderMath
+						local chance = tMath.BaseProcChance + (tMath.ProcChancePerStack * (tsStacks - 1))
+						
+						if math.random() <= chance then
+							-- Visual Lightning Bolt
+							local bolt = Instance.new("Part")
+							bolt.Size = Vector3.new(1, 100, 1)
+							bolt.Position = part.Position + Vector3.new(0, 50, 0)
+							bolt.Anchored = true
+							bolt.CanCollide = false
+							bolt.Material = Enum.Material.Neon
+							bolt.BrickColor = BrickColor.new("New Yeller")
+							bolt.Parent = Workspace
+							task.delay(0.2, function() bolt:Destroy() end)
+							
+							monsterHumanoid:TakeDamage(monsterHumanoid.MaxHealth * tMath.NormalMobDamage)
+						end
+					end
+					
+					-- 2. INCENDIARY ROUNDS
+					local irStacks = player:GetAttribute("Skill_IncendiaryRounds") or 0
+					if irStacks > 0 and not monsterHumanoid:GetAttribute("OnFire") then
+						monsterHumanoid:SetAttribute("OnFire", true)
+						local fMath = SkillConfig["Incendiary Rounds"].FireMath
+						
+						local fire = Instance.new("Fire", part)
+						
+						task.spawn(function()
+							for _ = 1, fMath.DurationSeconds do
+								task.wait(fMath.TickRate)
+								if monsterHumanoid and monsterHumanoid.Health > 0 then
+									monsterHumanoid:TakeDamage(monsterHumanoid.MaxHealth * fMath.NormalMobHPDamage)
+								else
+									break
+								end
+							end
+							if monsterHumanoid then monsterHumanoid:SetAttribute("OnFire", nil) end
+							if fire then fire:Destroy() end
+						end)
+					end
+				end
+				
+				-- ==========================================
+				-- [[ DEATH LOGIC ]]
+				-- ==========================================
 				if monsterHumanoid.Health <= 0 then
-					if monsterHumanoid:GetAttribute("IsDead") then return end
+					if monsterHumanoid:GetAttribute("IsDead") then continue end
 					monsterHumanoid:SetAttribute("IsDead", true)
-
+					
 					local profile = DataService.GetProfile(player)
 					if profile then
 						profile.Data.Sausages += 1
 						player:SetAttribute("Sausages", profile.Data.Sausages)
 					end
-
 					DropService.RollForDrop(enemyModel.PrimaryPart.Position, player)
 				end
+				
 			end
 		end
 	end

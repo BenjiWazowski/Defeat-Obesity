@@ -42,7 +42,6 @@ local function GetWeaponStats(weaponName: string, currentWave: number)
 	
 	stats.Damage = config.Damage.Base * math.pow(config.Damage.GrowthMult, currentWave - 1)
 	
-	-- SAFEGUARD: Only calculate ammo/reload if it's a gun!
 	if config.Type ~= "Melee" then
 		stats.ClipSize = math.floor(config.ClipSize.Cap - ((config.ClipSize.Cap - config.ClipSize.Base) * math.pow(1 - decayRate, currentWave - 1)))
 		stats.ReserveClips = math.floor(config.ReserveClips.Cap - ((config.ReserveClips.Cap - config.ReserveClips.Base) * math.pow(1 - decayRate, currentWave - 1)))
@@ -69,7 +68,6 @@ ReloadEvent.OnServerEvent:Connect(function(player: Player, weaponName: string)
 	local currentWave = Workspace:GetAttribute("CurrentWave") or 1
 	local wStats = GetWeaponStats(weaponName, currentWave)
 	
-	-- FIX 1: Initialize Ammo on the Server
 	local currentAmmo = equippedTool:GetAttribute("CurrentAmmo")
 	local reserveAmmo = equippedTool:GetAttribute("ReserveAmmo")
 	if currentAmmo == nil then currentAmmo = wStats.ClipSize; equippedTool:SetAttribute("CurrentAmmo", currentAmmo) end
@@ -126,7 +124,6 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 	local wStats = GetWeaponStats(weaponName, currentWave)
 	local activeStats = StatManager.GetActiveStats(player)
 	
-	-- FIX 1: Initialize Ammo on the Server
 	local currentAmmo = equippedTool:GetAttribute("CurrentAmmo")
 	local reserveAmmo = equippedTool:GetAttribute("ReserveAmmo")
 	if currentAmmo == nil then currentAmmo = wStats.ClipSize; equippedTool:SetAttribute("CurrentAmmo", currentAmmo) end
@@ -148,8 +145,6 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 		equippedTool:SetAttribute("CurrentAmmo", currentAmmo - 1)
 	end
 	
-	-- NEW MULTIPLIER MATH: 1 Stat Point = +1% Damage
-	-- NEW DYNAMIC DAMAGE CALCULATION
 	local baseDamage = wStats.Damage * (1 + ((activeStats.GunDamage or 0) / 100))
 	local isExplosive = config.ProjectileType == "PhysicalObject" or config.ProjectileType == "PhysicalTrajectory"
 	
@@ -198,7 +193,6 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 						local pTarget = Players:GetPlayerFromCharacter(model)
 						if pTarget == player then
 							humanoid:TakeDamage(baseDamage * 0.3) 
-						-- FIX 2: String.find prevents the "_Cached_" error
 						elseif string.find(humanoid.Parent.Name, "ObesityMonster") then
 							humanoid:TakeDamage(baseDamage)
 							
@@ -239,7 +233,6 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 				local hitPart = raycastResult.Instance
 				local enemyModel = hitPart:FindFirstAncestorWhichIsA("Model")
 				
-				-- FIX 2: String.find prevents the "_Cached_" error
 				if enemyModel and string.find(enemyModel.Name, "ObesityMonster") then
 					local monsterHumanoid = enemyModel:FindFirstChild("Humanoid") :: Humanoid
 					if monsterHumanoid and monsterHumanoid.Health > 0 then
@@ -251,8 +244,62 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 							isHeadshot = true
 						end
 						
+						-- Deal Base Damage
 						monsterHumanoid:TakeDamage(finalDamage)
 						
+						-- ==========================================
+						-- [[ EPIC SKILLS: ON-HIT EFFECTS ]]
+						-- ==========================================
+						if monsterHumanoid.Health > 0 then
+							local SkillConfig = require(ReplicatedStorage.GameConfig.SkillConfig)
+							
+							-- 1. THUNDER STRIKE
+							local tsStacks = player:GetAttribute("Skill_ThunderStrike") or 0
+							if tsStacks > 0 then
+								local tMath = SkillConfig["Thunder Strike"].ThunderMath
+								local chance = tMath.BaseProcChance + (tMath.ProcChancePerStack * (tsStacks - 1))
+								
+								if math.random() <= chance then
+									local bolt = Instance.new("Part")
+									bolt.Size = Vector3.new(1, 100, 1)
+									bolt.Position = hitPart.Position + Vector3.new(0, 50, 0)
+									bolt.Anchored = true
+									bolt.CanCollide = false
+									bolt.Material = Enum.Material.Neon
+									bolt.BrickColor = BrickColor.new("New Yeller")
+									bolt.Parent = Workspace
+									task.delay(0.2, function() bolt:Destroy() end)
+									
+									monsterHumanoid:TakeDamage(monsterHumanoid.MaxHealth * tMath.NormalMobDamage)
+								end
+							end
+							
+							-- 2. INCENDIARY ROUNDS
+							local irStacks = player:GetAttribute("Skill_IncendiaryRounds") or 0
+							if irStacks > 0 and not monsterHumanoid:GetAttribute("OnFire") then
+								monsterHumanoid:SetAttribute("OnFire", true)
+								local fMath = SkillConfig["Incendiary Rounds"].FireMath
+								
+								local fire = Instance.new("Fire", hitPart)
+								
+								task.spawn(function()
+									for _ = 1, fMath.DurationSeconds do
+										task.wait(fMath.TickRate)
+										if monsterHumanoid and monsterHumanoid.Health > 0 then
+											monsterHumanoid:TakeDamage(monsterHumanoid.MaxHealth * fMath.NormalMobHPDamage)
+										else
+											break
+										end
+									end
+									if monsterHumanoid then monsterHumanoid:SetAttribute("OnFire", nil) end
+									if fire then fire:Destroy() end
+								end)
+							end
+						end
+						
+						-- ==========================================
+						-- [[ DEATH & EXPLODING HEADSHOTS ]]
+						-- ==========================================
 						if monsterHumanoid.Health <= 0 then
 							if monsterHumanoid:GetAttribute("IsDead") then continue end
 							monsterHumanoid:SetAttribute("IsDead", true)
@@ -297,6 +344,7 @@ ShootEvent.OnServerEvent:Connect(function(player: Player, weaponName: string, or
 							end
 							DropService.RollForDrop(hitPart.Position, player)
 						end
+						
 					end
 				end
 			end
