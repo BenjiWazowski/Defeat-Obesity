@@ -17,21 +17,29 @@ local cards = {
 	cardContainer:WaitForChild("Card3") :: TextButton
 }
 
+-- Hidden button to automatically free the mouse when drafting
+local draftModal = Instance.new("TextButton")
+draftModal.Size = UDim2.new(0, 0, 0, 0)
+draftModal.BackgroundTransparency = 1
+draftModal.Text = ""
+draftModal.Modal = true
+draftModal.Visible = false
+draftModal.Parent = draftHUD
+
 local isDrafting = false
-local cardConnections = {} -- Securely stores click connections
+local cardConnections = {} 
 
 DraftEvent.OnClientEvent:Connect(function(skillOptions: any)
-	-- Listen for the Server forcing the menu closed on timeout
 	if type(skillOptions) == "string" and skillOptions == "Close" then
 		isDrafting = false
 		draftHUD.Enabled = false
+		draftModal.Visible = false -- Lock the mouse again
 		return
 	end
 	
 	if isDrafting then return end
 	isDrafting = true
 	
-	-- Clear old connections securely
 	for _, conn in ipairs(cardConnections) do
 		conn:Disconnect()
 	end
@@ -52,12 +60,14 @@ DraftEvent.OnClientEvent:Connect(function(skillOptions: any)
 			if not isDrafting then return end
 			isDrafting = false
 			draftHUD.Enabled = false
+			draftModal.Visible = false -- Lock the mouse again
 			DraftEvent:FireServer(skillData.Name)
 		end)
 		table.insert(cardConnections, conn)
 	end
 	
 	draftHUD.Enabled = true
+	draftModal.Visible = true -- Free the mouse automatically!
 end)
 
 print("🃏 [DraftController] Ready to receive skills.")
