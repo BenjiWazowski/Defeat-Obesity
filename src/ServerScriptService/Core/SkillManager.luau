@@ -140,11 +140,7 @@ function SkillManager.ForceEndDraft()
 	ActiveDrafts = {}
 	PlayersDrafting = 0
 end
-	
-	-- Clear all locks
-	ActiveDrafts = {}
-	PlayersDrafting = 0
-end
+
 
 -- Clean up if a player leaves mid-draft so the wave doesn't pause forever
 Players.PlayerRemoving:Connect(function(player)
