@@ -6,7 +6,6 @@ local Workspace = game:GetService("Workspace")
 local MatchmakingService = {}
 
 -- [[ CONFIGURATION ]]
--- WARNING: You MUST replace this ID with the actual Place ID of your Arena
 local ARENA_PLACE_ID = 125170709894675
 local REQUIRED_PLAYERS = 1
 local MAX_PLAYERS = 4
@@ -17,9 +16,16 @@ local Queue: {Player} = {}
 local CountdownActive: boolean = false
 local Teleporting: boolean = false
 
+-- Locate the Floating Text on the Pad
+local elevator = Workspace:WaitForChild("MatchmakingElevator")
+local queuePad = elevator:WaitForChild("QueuePad") :: BasePart
+local billboard = queuePad:WaitForChild("BillboardGui")
+local statusText = billboard:WaitForChild("TextLabel") :: TextLabel
+
 local function UpdateUI()
-	-- Tell the HUD the current queue size
-	Workspace:SetAttribute("CurrentWave", "QUEUE: " .. #Queue .. "/" .. MAX_PLAYERS)
+	-- Update the floating text directly!
+	statusText.Text = #Queue .. "/" .. MAX_PLAYERS
+	statusText.TextColor3 = Color3.fromRGB(255, 255, 255)
 	print("[Matchmaking] Queue Size: " .. #Queue)
 end
 
@@ -34,29 +40,26 @@ end
 
 local function ExecuteTeleport()
 	if #Queue < REQUIRED_PLAYERS then
-		print("[Matchmaking] Not enough players to start.")
 		CountdownActive = false
+		UpdateUI()
 		return
 	end
 
 	Teleporting = true
-	print("[Matchmaking] Reserving server and teleporting players...")
-	Workspace:SetAttribute("IntermissionTime", "TELEPORTING...")
+	statusText.Text = "Teleporting..."
+	statusText.TextColor3 = Color3.fromRGB(100, 255, 100)
 
 	local success, errorMessage = pcall(function()
 		local reservedServerCode = TeleportService:ReserveServer(ARENA_PLACE_ID)
 		
+		local DataService = require(script.Parent:WaitForChild("DataService"))
 		for _, player in ipairs(Queue) do
 			local profile = DataService.GetProfile(player)
-			if profile then
-				print("[Matchmaking] Unlocking DataStore for " .. player.Name)
-				profile:EndSession()
-			end
+			if profile then profile:EndSession() end
 		end
 		
 		local teleportOptions = Instance.new("TeleportOptions")
 		teleportOptions.ReservedServerAccessCode = reservedServerCode
-		
 		TeleportService:TeleportAsync(ARENA_PLACE_ID, Queue, teleportOptions)
 	end)
 
@@ -64,7 +67,8 @@ local function ExecuteTeleport()
 		warn("[Matchmaking] Teleport failed: " .. tostring(errorMessage))
 		Teleporting = false
 		Queue = {} 
-		Workspace:SetAttribute("IntermissionTime", "TELEPORT FAILED")
+		statusText.Text = "Failed!"
+		statusText.TextColor3 = Color3.fromRGB(255, 100, 100)
 		task.wait(3)
 		UpdateUI()
 	end
@@ -73,18 +77,16 @@ end
 local function StartCountdown()
 	if CountdownActive or Teleporting then return end
 	CountdownActive = true
-	
-	Workspace:SetAttribute("WaveState", "Intermission")
 
 	task.spawn(function()
 		for i = COUNTDOWN_TIME, 1, -1 do
 			if #Queue == 0 then
-				print("[Matchmaking] Queue empty. Countdown aborted.")
-				Workspace:SetAttribute("WaveState", "Active") -- Hides the timer
 				CountdownActive = false
+				UpdateUI()
 				return
 			end
-			Workspace:SetAttribute("IntermissionTime", i)
+			statusText.Text = "Starting in " .. i
+			statusText.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold countdown
 			task.wait(1)
 		end
 		ExecuteTeleport()
@@ -93,16 +95,6 @@ end
 
 -- [[ THE QUEUE PAD LOGIC ]]
 local function InitializeQueuePad()
-	-- Look for the Elevator model first, then the pad inside it
-	local elevator = Workspace:WaitForChild("MatchmakingElevator", 10)
-	local queuePad = elevator and elevator:WaitForChild("QueuePad", 5) :: BasePart
-	
-	if not queuePad then
-		warn("[Matchmaking] QueuePad not found! Matchmaking disabled.")
-		return
-	end
-
-	-- Debounce dictionary to prevent the Touched event from firing 1000 times a second
 	local debounce = {}
 
 	queuePad.Touched:Connect(function(hit: BasePart)
@@ -114,31 +106,22 @@ local function InitializeQueuePad()
 		local player = Players:GetPlayerFromCharacter(character)
 		if not player then return end
 
-		-- Check debounce and queue limits
 		if debounce[player.UserId] or table.find(Queue, player) then return end
 		if #Queue >= MAX_PLAYERS then return end
 
-		-- Add to queue
 		debounce[player.UserId] = true
 		table.insert(Queue, player)
-		print("[Matchmaking] " .. player.Name .. " joined the queue.")
 		UpdateUI()
-
-		-- Start timer if not already running
 		StartCountdown()
 
-		-- Release debounce after a short cooldown
 		task.wait(1)
 		debounce[player.UserId] = nil
 	end)
 end
 
--- Cleanup if a player disconnects while in the queue
 Players.PlayerRemoving:Connect(function(player: Player)
 	RemovePlayerFromQueue(player)
 end)
 
--- Start the system
 task.spawn(InitializeQueuePad)
-
 return MatchmakingService

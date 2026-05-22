@@ -17,6 +17,15 @@ local healthContainer = mainHUD:WaitForChild("HealthBarContainer") :: Frame
 local healthFill = healthContainer:WaitForChild("HealthFill") :: Frame
 local healthBar = healthContainer:WaitForChild("HealthText") :: TextLabel
 
+-- [[ LOBBY HUD MANAGER ]]
+-- If the elevator exists, we are in the Lobby. Hide the combat elements!
+local isLobby = Workspace:FindFirstChild("MatchmakingElevator") ~= nil
+if isLobby then
+	waveLabel.Visible = false
+	countdownLabel.Visible = false
+	healthContainer.Visible = false
+end
+
 -- Hook into the Stats Window & the 9 Stat Labels
 local statsWindow = mainHUD:WaitForChild("StatsWindow") :: Frame
 local statLabels = {
