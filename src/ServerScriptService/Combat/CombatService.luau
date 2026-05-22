@@ -93,26 +93,45 @@ MeleeSwingEvent.OnServerEvent:Connect(function(player: Player)
 					end
 					
 					-- 2. INCENDIARY ROUNDS
-					local irStacks = player:GetAttribute("Skill_IncendiaryRounds") or 0
-					if irStacks > 0 and not monsterHumanoid:GetAttribute("OnFire") then
-						monsterHumanoid:SetAttribute("OnFire", true)
-						local fMath = SkillConfig["Incendiary Rounds"].FireMath
-						
-						local fire = Instance.new("Fire", part)
-						
-						task.spawn(function()
-							for _ = 1, fMath.DurationSeconds do
-								task.wait(fMath.TickRate)
-								if monsterHumanoid and monsterHumanoid.Health > 0 then
-									monsterHumanoid:TakeDamage(monsterHumanoid.MaxHealth * fMath.NormalMobHPDamage)
-								else
-									break
+							local irStacks = player:GetAttribute("Skill_IncendiaryRounds") or 0
+							if irStacks > 0 then
+								local fMath = SkillConfig["Incendiary Rounds"].FireMath
+								
+								-- 20% Chance to trigger
+								if math.random() <= fMath.ProcChance then
+									-- Add a Burn Stack to the monster
+									local currentBurn = monsterHumanoid:GetAttribute("BurnStacks") or 0
+									monsterHumanoid:SetAttribute("BurnStacks", currentBurn + 1)
+									
+									-- If they aren't already burning, start the visual fire & damage loop
+									if not monsterHumanoid:GetAttribute("OnFire") then
+										monsterHumanoid:SetAttribute("OnFire", true)
+										local fire = Instance.new("Fire", Part)
+										
+										task.spawn(function()
+											for _ = 1, fMath.DurationSeconds do
+												task.wait(fMath.TickRate)
+												if monsterHumanoid and monsterHumanoid.Health > 0 then
+													-- Calculate dynamic damage based on how many bullets hit them
+													local stacks = monsterHumanoid:GetAttribute("BurnStacks") or 1
+													local damagePercent = fMath.NormalMobHPDamage + ((stacks - 1) * fMath.DamageIncreasePerStack)
+													
+													monsterHumanoid:TakeDamage(monsterHumanoid.MaxHealth * damagePercent)
+												else
+													break
+												end
+											end
+											
+											-- Cleanup after 3 seconds
+											if monsterHumanoid then 
+												monsterHumanoid:SetAttribute("OnFire", nil)
+												monsterHumanoid:SetAttribute("BurnStacks", 0)
+											end
+											if fire then fire:Destroy() end
+										end)
+									end
 								end
 							end
-							if monsterHumanoid then monsterHumanoid:SetAttribute("OnFire", nil) end
-							if fire then fire:Destroy() end
-						end)
-					end
 				end
 				
 				-- ==========================================

@@ -83,10 +83,12 @@ local SkillConfig = {
 		Description = "Weapons deal fire damage over time.",
 		MaxStacks = 1,
 		FireMath = {
-			DurationSeconds = 3, -- How long the fire lasts
-			TickRate = 1, -- Damages every 1 second
-			NormalMobHPDamage = 0.10, -- 10% Max HP damage per tick
-			EliteBossHPDamage = 0.04  -- 4% Max HP damage per tick
+			DurationSeconds = 3, 
+			TickRate = 1, 
+			NormalMobHPDamage = 0.10, 
+			EliteBossHPDamage = 0.04,
+			ProcChance = 0.15,             -- 15% chance to ignite on bullet hit
+			DamageIncreasePerStack = 0.01  -- +1% Max HP damage per extra stack
 		}
 	},
 	["Thunder Strike"] = {
@@ -94,7 +96,7 @@ local SkillConfig = {
 		Description = "Attacks have a chance to summon a Thunder strike.",
 		MaxStacks = 999, -- Infinite. Each stack increases proc chance
 		ThunderMath = {
-			BaseProcChance = 0.15, -- 15% chance to strike
+			BaseProcChance = 0.8, -- 8% chance to strike
 			ProcChancePerStack = 0.02, -- +2% chance per extra time you pick this skill
 			NormalMobDamage = 1.00, -- 100% Max HP (Instakill)
 			EliteDamage = 0.20, -- 20% Max HP

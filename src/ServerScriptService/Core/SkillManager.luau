@@ -48,13 +48,19 @@ function SkillManager.TriggerGlobalDraft()
 				end
 			end
 		end
-		
+	
+		local currentWave = Workspace:GetAttribute("CurrentWave") or 1
 		local choices = {}
+		
 		for i = 1, 3 do
-			-- 90% chance for Common, 10% for Epic
-			local isEpicRoll = math.random() <= 0.10
+			-- 5% chance for Epic, ONLY if past Wave 20
+			local isEpicRoll = false
+			if currentWave > 20 then
+				isEpicRoll = math.random() <= 0.05
+			end
+			
 			local pool = (isEpicRoll and #epics > 0) and epics or commons
-			if #pool == 0 then pool = (#commons > 0 and commons or epics) end -- Fallback if empty
+			if #pool == 0 then pool = (#commons > 0 and commons or epics) end -- Fallback
 			if #pool == 0 then break end
 			
 			local randIdx = math.random(1, #pool)

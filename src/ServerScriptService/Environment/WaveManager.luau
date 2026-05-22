@@ -12,9 +12,9 @@ local StatManager = require(script.Parent.Parent.Core:WaitForChild("StatManager"
 local SkillManager = require(script.Parent.Parent.Core:WaitForChild("SkillManager"))
 
 local MAX_ACTIVE_MONSTERS: number = 60
-local BASE_MONSTERS: number = 1
-local WAVE_MULTIPLIER: number = 1
-local INTERMISSION_TIME: number = 5
+local BASE_MONSTERS: number = 10
+local WAVE_MULTIPLIER: number = 1.2
+local INTERMISSION_TIME: number = 15
 
 local CurrentWave: number = 0
 local TotalWaveQuota: number = 0
