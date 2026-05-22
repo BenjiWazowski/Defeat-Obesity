@@ -7,7 +7,7 @@ local MatchmakingService = {}
 
 -- [[ CONFIGURATION ]]
 -- WARNING: You MUST replace this ID with the actual Place ID of your Arena
-local ARENA_PLACE_ID = 125170709894675 
+local ARENA_PLACE_ID = 125170709894675
 local REQUIRED_PLAYERS = 1
 local MAX_PLAYERS = 4
 local COUNTDOWN_TIME = 15
@@ -33,6 +33,8 @@ local function RemovePlayerFromQueue(player: Player)
 	end
 end
 
+local DataService = require(script.Parent:WaitForChild("DataService"))
+
 local function ExecuteTeleport()
 	if #Queue < REQUIRED_PLAYERS then
 		print("[Matchmaking] Not enough players to start.")
@@ -43,12 +45,18 @@ local function ExecuteTeleport()
 	Teleporting = true
 	print("[Matchmaking] Reserving server and teleporting players...")
 
-	-- Wrap in a pcall (protected call) to prevent the server script from crashing if Roblox API goes down
 	local success, errorMessage = pcall(function()
-		-- 1. Create a unique, private instance of the Arena
 		local reservedServerCode = TeleportService:ReserveServer(ARENA_PLACE_ID)
 		
-		-- 2. Teleport the specific array of queued players to that instance
+		-- SAFE DATA HANDOFF: Forcefully save and unlock data BEFORE teleporting
+		for _, player in ipairs(Queue) do
+			local profile = DataService.GetProfile(player)
+			if profile then
+				print("[Matchmaking] Unlocking DataStore for " .. player.Name)
+				profile:EndSession()
+			end
+		end
+		
 		local teleportOptions = Instance.new("TeleportOptions")
 		teleportOptions.ReservedServerAccessCode = reservedServerCode
 		
@@ -57,7 +65,6 @@ local function ExecuteTeleport()
 
 	if not success then
 		warn("[Matchmaking] Teleport failed: " .. tostring(errorMessage))
-		-- Reset state so players aren't soft-locked forever
 		Teleporting = false
 		Queue = {} 
 	end
@@ -83,10 +90,12 @@ end
 
 -- [[ THE QUEUE PAD LOGIC ]]
 local function InitializeQueuePad()
-	-- Look for a part named "QueuePad" in the Workspace
-	local queuePad = Workspace:WaitForChild("QueuePad", 10) :: BasePart
+	-- Look for the Elevator model first, then the pad inside it
+	local elevator = Workspace:WaitForChild("MatchmakingElevator", 10)
+	local queuePad = elevator and elevator:WaitForChild("QueuePad", 5) :: BasePart
+	
 	if not queuePad then
-		warn("[Matchmaking] QueuePad not found in Workspace! Matchmaking disabled.")
+		warn("[Matchmaking] QueuePad not found! Matchmaking disabled.")
 		return
 	end
 

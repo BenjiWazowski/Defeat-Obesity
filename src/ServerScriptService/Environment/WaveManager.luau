@@ -178,7 +178,8 @@ function WaveManager.InitializeArena()
 	WaveManager.StartWave()
 end
 
-if game.PrivateServerId ~= "" or RunService:IsStudio() then
+-- Only boot the arena if we are in a Reserved Server, or in Studio testing the Arena map
+if game.PrivateServerId ~= "" or (RunService:IsStudio() and not Workspace:FindFirstChild("MatchmakingElevator")) then
 	task.spawn(WaveManager.InitializeArena)
 end
 
