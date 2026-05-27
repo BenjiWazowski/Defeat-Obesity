@@ -13,20 +13,39 @@ local ProfileTemplate = {
 	Donuts = 0,
 	Level = 1,
 	Experience = 0,
+	
+	-- Loadout selections
 	EquippedClass = "Regular guy",
+	EquippedWeapons = {"AK 67", "Basic Spatula"}, -- Default starting loadout slots
+	
+	-- Unlocks list
 	UnlockedClasses = {"Regular guy"},
-	EquippedWeapons = {"Basic Spatula", "Empty Hand"}, -- The 2 selected weapons for the match
-	Inventory = {"Basic Spatula"} -- Permanent unlocks
+	Inventory = {"AK 67", "Basic Spatula"},
+	
+	-- PERMANENT META-UPGRADES (PHASE 9)
+	MetaStats = {
+		Health = 0,
+		MeleeDamage = 0,
+		MeleeRange = 0,
+		MeleeSpeed = 0,
+		GunDamage = 0,
+		ReloadSpeed = 0,
+		AmmoCapacity = 0,
+		MovementSpeed = 0,
+		Luck = 0
+	},
+	WeaponUpgrades = {
+		-- Example structure filled dynamically: ["AK 67"] = { Damage = 0, Speed = 0, Capacity = 0, Range = 0 }
+	}
 }
 
 -- Initialize the ProfileStore
 local PlayerStore = ProfileStore.New(
-	"PlayerData_v1",
+	"PlayerData_v2", -- Incremented version to ensure fresh setup integration
 	ProfileTemplate
 )
 
 local function PlayerAdded(player: Player)
-	-- ProfileStore uses StartSessionAsync instead of LoadProfileAsync
 	local profile = PlayerStore:StartSessionAsync("Player_" .. player.UserId, {
 		Cancel = function()
 			return player.Parent ~= Players
@@ -35,12 +54,14 @@ local function PlayerAdded(player: Player)
 
 	if profile ~= nil then
 		profile:AddUserId(player.UserId) 
-		profile:Reconcile() -- Fills in missing variables from ProfileTemplate for older players
+		profile:Reconcile() -- Fills in missing variables from ProfileTemplate for older profiles smoothly
+		
+		-- Sync Sausages value to attribute for UI visibility immediately
+		player:SetAttribute("Sausages", profile.Data.Sausages)
 		
 		-- ProfileStore uses OnSessionEnd instead of ListenToRelease
 		profile.OnSessionEnd:Connect(function()
 			DataService.Profiles[player] = nil
-			-- Only kick them if they aren't in the middle of a teleport
 			if not player:GetAttribute("IsTeleporting") then
 				player:Kick("Data session was terminated. Please rejoin.")
 			end
@@ -50,11 +71,9 @@ local function PlayerAdded(player: Player)
 			DataService.Profiles[player] = profile
 			print("✅ Data successfully loaded for: " .. player.Name)
 		else
-			-- Edge Case: Player left the game before their data finished loading.
 			profile:EndSession()
 		end
 	else
-		-- Edge Case: Roblox Datastores are down or session is locked in another server.
 		player:Kick("Failed to load data. The Roblox datastores might be experiencing issues. Please try again.") 
 	end
 end
@@ -66,7 +85,6 @@ local function PlayerRemoving(player: Player)
 	end
 end
 
--- Server API: Get a player's profile data safely
 function DataService.GetProfile(player: Player)
 	return DataService.Profiles[player]
 end
@@ -74,7 +92,6 @@ end
 Players.PlayerAdded:Connect(PlayerAdded)
 Players.PlayerRemoving:Connect(PlayerRemoving)
 
--- Edge Case Catch: Handle players who loaded in before the script executed in Studio
 for _, player in ipairs(Players:GetPlayers()) do
 	task.spawn(PlayerAdded, player)
 end

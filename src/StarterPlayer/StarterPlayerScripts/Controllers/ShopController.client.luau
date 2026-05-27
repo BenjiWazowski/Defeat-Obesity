@@ -2,17 +2,15 @@
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- [[ LOBBY ENVIRONMENT CHECK ]]
+-- Lobby check to isolate scripts from Arena environments
 local isLobby = Workspace:FindFirstChild("MatchmakingElevator") ~= nil
-if not isLobby then
-	return -- Stop running if the player is inside the Arena map!
-end
+if not isLobby then return end
 
--- Hook into the UI elements
 local mainHUD = playerGui:WaitForChild("MainHUD")
 local shopHUD = playerGui:WaitForChild("ShopHUD")
 
@@ -20,45 +18,52 @@ local menu = shopHUD:WaitForChild("Menu") :: Frame
 local closeButton = menu:WaitForChild("CloseButton") :: TextButton
 local openButton = mainHUD:WaitForChild("OpenShopButton") :: TextButton
 
--- Hook into the Workspace NPC
 local shopNPC = Workspace:WaitForChild("ShopNPC", 10)
 local shopPrompt = shopNPC and shopNPC:FindFirstChildWhichIsA("ProximityPrompt", true) :: ProximityPrompt
 
-local function OpenShop()
-	menu.Visible = true
-end
-
-local function CloseShop()
-	menu.Visible = false
-end
+local NetworkEvents = ReplicatedStorage:WaitForChild("NetworkEvents")
+local ShopEvent = NetworkEvents:WaitForChild("ShopEvent") :: RemoteEvent
 
 local function ToggleShop()
 	menu.Visible = not menu.Visible
 end
 
--- Connect the UI Buttons
-openButton.MouseButton1Click:Connect(OpenShop)
-closeButton.MouseButton1Click:Connect(CloseShop)
+openButton.MouseButton1Click:Connect(function() menu.Visible = true end)
+closeButton.MouseButton1Click:Connect(function() menu.Visible = false end)
 
--- Connect the Hotkey [E]
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	-- gameProcessed ensures the menu doesn't open if they are typing in chat
 	if gameProcessed then return end 
-	
 	if input.KeyCode == Enum.KeyCode.E then
 		ToggleShop()
 	end
 end)
 
--- Connect the NPC Proximity Prompt
 if shopPrompt then
 	shopPrompt.Triggered:Connect(function(playerWhoTriggered)
-		if playerWhoTriggered == player then
-			OpenShop()
-		end
+		if playerWhoTriggered == player then menu.Visible = true end
 	end)
-else
-	warn("[ShopController] ShopPrompt not found on the ShopNPC!")
 end
 
-print("🛒 [ShopController] Shop interface wired and ready.")
+-- [[ INTERFACE INTERACTION HANDLERS ]]
+-- Generic helper functions you can attach directly to UI click instances
+local function RequestStatUpgrade(statName: string)
+	ShopEvent:FireServer("UpgradeStat", statName)
+end
+
+local function RequestWeaponUpgrade(weaponName: string, statType: string)
+	ShopEvent:FireServer("UpgradeWeapon", weaponName, statType)
+end
+
+local function SaveLoadoutSelection(className: string, w1: string, w2: string)
+	ShopEvent:FireServer("SelectLoadout", className, w1, w2)
+end
+
+-- Listen for server validation updates to refresh lists dynamically
+ShopEvent.OnClientEvent:Connect(function(actionType: string, updatedData: any)
+	if actionType == "UpdateShopUI" then
+		-- This is where we will hook up display changes to numbers/costs in the next phase!
+		print("✨ Shop UI refreshed with latest data levels.")
+	end
+end)
+
+print("🛒 [ShopController] Comprehensive shop systems initialized.")
