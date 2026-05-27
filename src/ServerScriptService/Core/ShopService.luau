@@ -18,20 +18,24 @@ ShopEvent.Name = "ShopEvent"
 ShopEvent.Parent = NetworkEvents
 
 -- [[ COST CALCULATORS ]]
--- Formulas that scale higher with every level they buy
 local function GetStatUpgradeCost(currentLevel: number): number
-	return 10 + (currentLevel * 15) -- Level 0->1 costs 10, Level 1->2 costs 25, etc.
+	return 10 + (currentLevel * 15)
 end
 
 local function GetWeaponUpgradeCost(currentLevel: number): number
-	return 15 + (currentLevel * 20) -- Level 0->1 costs 15, Level 1->2 costs 35, etc.
+	return 15 + (currentLevel * 20)
+end -- THIS 'END' WAS MISSING!
 
-    ShopEvent.OnServerEvent:Connect(function(player: Player, action: string, param1: any, param2: any)
+ShopEvent.OnServerEvent:Connect(function(player: Player, action: string, param1: any, param2: any)
 	local profile = DataService.GetProfile(player)
 	if not profile then return end
 	
+	-- NEW: Send the player their data when they open the shop
+	if action == "RequestData" then
+		ShopEvent:FireClient(player, "UpdateShopUI", profile.Data)
+		
 	-- [[ 1. UPGRADE CHARACTER STATS ]]
-	if action == "UpgradeStat" then
+	elseif action == "UpgradeStat" then
 		local statName = param1
 		if profile.Data.MetaStats[statName] == nil then return end
 		
@@ -43,7 +47,6 @@ local function GetWeaponUpgradeCost(currentLevel: number): number
 			profile.Data.MetaStats[statName] += 1
 			player:SetAttribute("Sausages", profile.Data.Sausages)
 			
-			-- Fire event back to update client text displays instantly
 			ShopEvent:FireClient(player, "UpdateShopUI", profile.Data)
 			print("🛒 " .. player.Name .. " upgraded stat " .. statName .. " to Level " .. profile.Data.MetaStats[statName])
 		end
@@ -51,7 +54,7 @@ local function GetWeaponUpgradeCost(currentLevel: number): number
 	-- [[ 2. UPGRADE WEAPON BASE STATS ]]
 	elseif action == "UpgradeWeapon" then
 		local weaponName = param1
-		local statType = param2 -- "Damage", "Speed", "Capacity", or "Range"
+		local statType = param2
 		
 		if not profile.Data.WeaponUpgrades[weaponName] then
 			profile.Data.WeaponUpgrades[weaponName] = { Damage = 0, Speed = 0, Capacity = 0, Range = 0 }
