@@ -7,7 +7,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Lobby check to isolate scripts from Arena environments
 local isLobby = Workspace:FindFirstChild("MatchmakingElevator") ~= nil
 if not isLobby then return end
 
@@ -16,7 +15,8 @@ local shopHUD = playerGui:WaitForChild("ShopHUD")
 
 local menu = shopHUD:WaitForChild("Menu") :: Frame
 local closeButton = menu:WaitForChild("CloseButton") :: TextButton
-local openButton = mainHUD:WaitForChild("OpenShopButton") :: TextButton
+local statsWindow = mainHUD:WaitForChild("StatsWindow")
+local openButton = statsWindow:WaitForChild("OpenShopButton") :: TextButton
 
 local shopNPC = Workspace:WaitForChild("ShopNPC", 10)
 local shopPrompt = shopNPC and shopNPC:FindFirstChildWhichIsA("ProximityPrompt", true) :: ProximityPrompt
@@ -24,46 +24,70 @@ local shopPrompt = shopNPC and shopNPC:FindFirstChildWhichIsA("ProximityPrompt",
 local NetworkEvents = ReplicatedStorage:WaitForChild("NetworkEvents")
 local ShopEvent = NetworkEvents:WaitForChild("ShopEvent") :: RemoteEvent
 
-local function ToggleShop()
-	menu.Visible = not menu.Visible
-end
+-- [[ DYNAMIC UI WIRING ]]
+local statsPanel = menu:WaitForChild("StatsPanel") :: ScrollingFrame
 
-openButton.MouseButton1Click:Connect(function() menu.Visible = true end)
-closeButton.MouseButton1Click:Connect(function() menu.Visible = false end)
+local function getStatCost(level: number) return 10 + (level * 15) end
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end 
-	if input.KeyCode == Enum.KeyCode.E then
-		ToggleShop()
+-- 1. Automatically wire every upgrade button in the panel
+for _, statFrame in ipairs(statsPanel:GetChildren()) do
+	if statFrame:IsA("Frame") then
+		local statName = statFrame.Name -- e.g., "Health", "MeleeDamage"
+		local upgradeBtn = statFrame:WaitForChild("UpgradeBtn") :: TextButton
+		
+		upgradeBtn.MouseButton1Click:Connect(function()
+			ShopEvent:FireServer("UpgradeStat", statName)
+		end)
 	end
-end)
-
-if shopPrompt then
-	shopPrompt.Triggered:Connect(function(playerWhoTriggered)
-		if playerWhoTriggered == player then menu.Visible = true end
-	end)
 end
 
--- [[ INTERFACE INTERACTION HANDLERS ]]
--- Generic helper functions you can attach directly to UI click instances
-local function RequestStatUpgrade(statName: string)
-	ShopEvent:FireServer("UpgradeStat", statName)
-end
-
-local function RequestWeaponUpgrade(weaponName: string, statType: string)
-	ShopEvent:FireServer("UpgradeWeapon", weaponName, statType)
-end
-
-local function SaveLoadoutSelection(className: string, w1: string, w2: string)
-	ShopEvent:FireServer("SelectLoadout", className, w1, w2)
-end
-
--- Listen for server validation updates to refresh lists dynamically
+-- 2. Update the text labels when the server sends new purchase data
 ShopEvent.OnClientEvent:Connect(function(actionType: string, updatedData: any)
 	if actionType == "UpdateShopUI" then
-		-- This is where we will hook up display changes to numbers/costs in the next phase!
+		for _, statFrame in ipairs(statsPanel:GetChildren()) do
+			if statFrame:IsA("Frame") then
+				local statName = statFrame.Name
+				local lvl = updatedData.MetaStats[statName] or 0
+				local cost = getStatCost(lvl)
+				
+				local levelText = statFrame:FindFirstChild("LevelText") :: TextLabel
+				local costText = statFrame:FindFirstChild("CostText") :: TextLabel
+				
+				if levelText then levelText.Text = "Lvl " .. lvl end
+				if costText then costText.Text = cost .. " Sausages" end
+			end
+		end
 		print("✨ Shop UI refreshed with latest data levels.")
 	end
 end)
 
-print("🛒 [ShopController] Comprehensive shop systems initialized.")
+-- [[ SHOP TOGGLE LOGIC ]]
+local dataLoaded = false
+
+local function OpenShop()
+	menu.Visible = true
+	-- Fetch the player's saved levels the very first time they open the menu
+	if not dataLoaded then
+		ShopEvent:FireServer("RequestData")
+		dataLoaded = true
+	end
+end
+
+local function CloseShop() menu.Visible = false end
+local function ToggleShop()
+	if menu.Visible then CloseShop() else OpenShop() end
+end
+
+openButton.MouseButton1Click:Connect(OpenShop)
+closeButton.MouseButton1Click:Connect(CloseShop)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end 
+	if input.KeyCode == Enum.KeyCode.E then ToggleShop() end
+end)
+
+if shopPrompt then
+	shopPrompt.Triggered:Connect(function(p) if p == player then OpenShop() end end)
+end
+
+print("🛒 [ShopController] Shop interface wired and ready.")
