@@ -6,6 +6,12 @@ local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
+-- [[ LOBBY ENVIRONMENT CHECK ]]
+local isLobby = Workspace:FindFirstChild("MatchmakingElevator") ~= nil
+if not isLobby then
+	return -- Stop running if the player is inside the Arena map!
+end
+
 -- Hook into the UI elements
 local mainHUD = playerGui:WaitForChild("MainHUD")
 local shopHUD = playerGui:WaitForChild("ShopHUD")
@@ -36,7 +42,7 @@ closeButton.MouseButton1Click:Connect(CloseShop)
 
 -- Connect the Hotkey [E]
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	-- gameProcessed prevents the menu from opening if they are typing 'e' in the chat!
+	-- gameProcessed ensures the menu doesn't open if they are typing in chat
 	if gameProcessed then return end 
 	
 	if input.KeyCode == Enum.KeyCode.E then
