@@ -5,17 +5,8 @@ local Players = game:GetService("Players")
 local DataService = require(script.Parent:WaitForChild("DataService"))
 
 local ShopService = {}
-
 local NetworkEvents = ReplicatedStorage:FindFirstChild("NetworkEvents")
-if not NetworkEvents then
-	NetworkEvents = Instance.new("Folder")
-	NetworkEvents.Name = "NetworkEvents"
-	NetworkEvents.Parent = ReplicatedStorage
-end
-
-local ShopEvent = NetworkEvents:FindFirstChild("ShopEvent") or Instance.new("RemoteEvent")
-ShopEvent.Name = "ShopEvent"
-ShopEvent.Parent = NetworkEvents
+local ShopEvent = NetworkEvents:FindFirstChild("ShopEvent") :: RemoteEvent
 
 -- [[ COST CALCULATORS ]]
 local function GetStatUpgradeCost(currentLevel: number): number
@@ -24,13 +15,12 @@ end
 
 local function GetWeaponUpgradeCost(currentLevel: number): number
 	return 15 + (currentLevel * 20)
-end -- THIS 'END' WAS MISSING!
+end
 
-ShopEvent.OnServerEvent:Connect(function(player: Player, action: string, param1: any, param2: any)
+ShopEvent.OnServerEvent:Connect(function(player: Player, action: string, param1: any)
 	local profile = DataService.GetProfile(player)
 	if not profile then return end
 	
-	-- NEW: Send the player their data when they open the shop
 	if action == "RequestData" then
 		ShopEvent:FireClient(player, "UpdateShopUI", profile.Data)
 		
@@ -48,39 +38,28 @@ ShopEvent.OnServerEvent:Connect(function(player: Player, action: string, param1:
 			player:SetAttribute("Sausages", profile.Data.Sausages)
 			
 			ShopEvent:FireClient(player, "UpdateShopUI", profile.Data)
-			print("🛒 " .. player.Name .. " upgraded stat " .. statName .. " to Level " .. profile.Data.MetaStats[statName])
 		end
 		
-	-- [[ 2. UPGRADE WEAPON BASE STATS ]]
+	-- [[ 2. WEAPON "STAR UP" (Level Up Overall Weapon) ]]
 	elseif action == "UpgradeWeapon" then
 		local weaponName = param1
-		local statType = param2
 		
-		if not profile.Data.WeaponUpgrades[weaponName] then
-			profile.Data.WeaponUpgrades[weaponName] = { Damage = 0, Speed = 0, Capacity = 0, Range = 0 }
+		-- Convert to integer level logic
+		if type(profile.Data.WeaponUpgrades[weaponName]) ~= "number" then
+			profile.Data.WeaponUpgrades[weaponName] = 0
 		end
 		
-		local currentLevel = profile.Data.WeaponUpgrades[weaponName][statType] or 0
+		local currentLevel = profile.Data.WeaponUpgrades[weaponName]
 		local cost = GetWeaponUpgradeCost(currentLevel)
 		
 		if profile.Data.Sausages >= cost then
 			profile.Data.Sausages -= cost
-			profile.Data.WeaponUpgrades[weaponName][statType] = currentLevel + 1
+			profile.Data.WeaponUpgrades[weaponName] = currentLevel + 1
 			player:SetAttribute("Sausages", profile.Data.Sausages)
 			
 			ShopEvent:FireClient(player, "UpdateShopUI", profile.Data)
-			print("🛒 " .. player.Name .. " upgraded " .. weaponName .. " " .. statType .. " to Level " .. currentLevel + 1)
+			print("⭐ " .. player.Name .. " Starred Up " .. weaponName .. " to Level " .. (currentLevel + 1))
 		end
-		
-	-- [[ 3. CHOOSE CLASS AND WEAPONS LOADOUT ]]
-	elseif action == "SelectLoadout" then
-		local classChoice = param1
-		local weapon1 = param2
-		local weapon2 = param3
-		
-		profile.Data.EquippedClass = classChoice
-		profile.Data.EquippedWeapons = {weapon1, weapon2}
-		print("🎒 " .. player.Name .. " locked in loadout: Class [" .. classChoice .. "] Weapons: [" .. weapon1 .. ", " .. weapon2 .. "]")
 	end
 end)
 
