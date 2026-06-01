@@ -7,8 +7,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local isLobby = Workspace:FindFirstChild("MatchmakingElevator") ~= nil
-if not isLobby then return end
+-- FIX: Wait for the 3D map to load before checking for the Lobby!
+local elevator = Workspace:WaitForChild("MatchmakingElevator", 5)
+if not elevator then 
+	print("⚔️ [ShopController] Not in Lobby. Shop disabled.")
+	return 
+end
 
 local mainHUD = playerGui:WaitForChild("MainHUD")
 local shopHUD = playerGui:WaitForChild("ShopHUD")
@@ -16,7 +20,7 @@ local shopHUD = playerGui:WaitForChild("ShopHUD")
 local menu = shopHUD:WaitForChild("Menu") :: Frame
 local closeButton = menu:WaitForChild("CloseButton") :: TextButton
 local backButton = menu:WaitForChild("BackButton") :: TextButton
-local openButton = mainHUD:WaitForChild("OpenShopButton") :: TextButton -- THE FIX!
+local openButton = mainHUD:WaitForChild("OpenShopButton") :: TextButton
 
 local homePanel = menu:WaitForChild("HomePanel") :: Frame
 local statsBtn = homePanel:WaitForChild("CharacterStatsBtn") :: TextButton
@@ -36,7 +40,7 @@ local WeaponConfig = require(ReplicatedStorage.GameConfig:WaitForChild("WeaponCo
 local function getStatCost(level: number) return 10 + (level * 15) end
 local function getWeaponCost(level: number) return 15 + (level * 20) end
 
-local favoriteWeapons = {} -- Local storage for favorites
+local favoriteWeapons = {} 
 
 -- [[ 1. PAGE NAVIGATION LOGIC ]]
 local function ShowPage(page: string)
@@ -62,7 +66,7 @@ for weaponName, _ in pairs(WeaponConfig) do
 	local favBtn = newCard:WaitForChild("FavoriteBtn") :: TextButton
 	
 	title.Text = weaponName
-	newCard.LayoutOrder = 1 -- Default sorting
+	newCard.LayoutOrder = 1 
 	
 	upgBtn.MouseButton1Click:Connect(function()
 		ShopEvent:FireServer("UpgradeWeapon", weaponName)
@@ -70,7 +74,8 @@ for weaponName, _ in pairs(WeaponConfig) do
 	
 	favBtn.MouseButton1Click:Connect(function()
 		favoriteWeapons[weaponName] = not favoriteWeapons[weaponName]
-		newCard.LayoutOrder = favoriteWeapons[weaponName] and 0 or 1
+		-- Favorites jump to the top (LayoutOrder -1)
+		newCard.LayoutOrder = favoriteWeapons[weaponName] and -1 or 1
 		favBtn.TextColor3 = favoriteWeapons[weaponName] and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(255, 255, 255)
 	end)
 end
@@ -138,3 +143,5 @@ end)
 if shopPrompt then
 	shopPrompt.Triggered:Connect(function(p) if p == player then ToggleShop() end end)
 end
+
+print("🛒 [ShopController] Shop interface wired and ready.")

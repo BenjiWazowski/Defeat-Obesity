@@ -19,7 +19,9 @@ local healthBar = healthContainer:WaitForChild("HealthText") :: TextLabel
 
 -- [[ LOBBY HUD MANAGER ]]
 -- If the elevator exists, we are in the Lobby. Hide the combat elements!
-local isLobby = Workspace:FindFirstChild("MatchmakingElevator") ~= nil
+-- Wait up to 5 seconds to see if we are in the Lobby before assuming it's the Arena!
+local elevator = Workspace:WaitForChild("MatchmakingElevator", 5)
+local isLobby = elevator ~= nil
 if isLobby then
 	waveLabel.Visible = false
 	countdownLabel.Visible = false
