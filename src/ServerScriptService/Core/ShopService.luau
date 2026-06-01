@@ -5,8 +5,22 @@ local Players = game:GetService("Players")
 local DataService = require(script.Parent:WaitForChild("DataService"))
 
 local ShopService = {}
+
+-- Safely find or create the NetworkEvents folder
 local NetworkEvents = ReplicatedStorage:FindFirstChild("NetworkEvents")
-local ShopEvent = NetworkEvents:FindFirstChild("ShopEvent") :: RemoteEvent
+if not NetworkEvents then
+	NetworkEvents = Instance.new("Folder")
+	NetworkEvents.Name = "NetworkEvents"
+	NetworkEvents.Parent = ReplicatedStorage
+end
+
+-- Safely find or create the ShopEvent
+local ShopEvent = NetworkEvents:FindFirstChild("ShopEvent")
+if not ShopEvent then
+	ShopEvent = Instance.new("RemoteEvent")
+	ShopEvent.Name = "ShopEvent"
+	ShopEvent.Parent = NetworkEvents
+end
 
 -- [[ COST CALCULATORS ]]
 local function GetStatUpgradeCost(currentLevel: number): number
