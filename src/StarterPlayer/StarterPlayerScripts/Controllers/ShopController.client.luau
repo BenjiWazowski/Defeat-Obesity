@@ -7,7 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- FIX: Wait for the 3D map to load before checking for the Lobby!
+-- Verify Environment Context
 local elevator = Workspace:WaitForChild("MatchmakingElevator", 5)
 if not elevator then 
 	print("⚔️ [ShopController] Not in Lobby. Shop disabled.")
@@ -62,31 +62,40 @@ for weaponName, _ in pairs(WeaponConfig) do
 	newCard.Parent = weaponsPanel
 	
 	local title = newCard:WaitForChild("Title") :: TextLabel
-	local upgBtn = newCard:WaitForChild("UpgradeBtn") :: TextButton
-	local favBtn = newCard:WaitForChild("FavoriteBtn") :: TextButton
+	local upgBtn = newCard:WaitForChild("UpgradeBtn")
+	local favBtn = newCard:WaitForChild("FavoriteBtn")
 	
 	title.Text = weaponName
 	newCard.LayoutOrder = 1 
 	
-	upgBtn.MouseButton1Click:Connect(function()
-		ShopEvent:FireServer("UpgradeWeapon", weaponName)
-	end)
+	if upgBtn and upgBtn:IsA("TextButton") then
+		upgBtn.MouseButton1Click:Connect(function()
+			ShopEvent:FireServer("UpgradeWeapon", weaponName)
+		end)
+	end
 	
-	favBtn.MouseButton1Click:Connect(function()
-		favoriteWeapons[weaponName] = not favoriteWeapons[weaponName]
-		-- Favorites jump to the top (LayoutOrder -1)
-		newCard.LayoutOrder = favoriteWeapons[weaponName] and -1 or 1
-		favBtn.TextColor3 = favoriteWeapons[weaponName] and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(255, 255, 255)
-	end)
+	if favBtn and favBtn:IsA("TextButton") then
+		favBtn.MouseButton1Click:Connect(function()
+			favoriteWeapons[weaponName] = not favoriteWeapons[weaponName]
+			newCard.LayoutOrder = favoriteWeapons[weaponName] and -1 or 1
+			favBtn.TextColor3 = favoriteWeapons[weaponName] and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(255, 255, 255)
+		end)
+	end
 end
 
 -- [[ 3. WIRE STAT BUTTONS ]]
 for _, statFrame in ipairs(statsPanel:GetChildren()) do
 	if statFrame:IsA("Frame") then
-		local upgBtn = statFrame:WaitForChild("UpgradeBtn") :: TextButton
-		upgBtn.MouseButton1Click:Connect(function()
-			ShopEvent:FireServer("UpgradeStat", statFrame.Name)
-		end)
+		local upgBtn = statFrame:WaitForChild("UpgradeBtn", 3)
+		
+		-- DEFENSIVE CHECK: Prevent crashing if Studio layout contains a TextLabel mismatch
+		if upgBtn and upgBtn:IsA("TextButton") then
+			upgBtn.MouseButton1Click:Connect(function()
+				ShopEvent:FireServer("UpgradeStat", statFrame.Name)
+			end)
+		else
+			warn("⚠️ [ShopController] UpgradeBtn in " .. statFrame.Name .. " is missing or not a TextButton! Wiring bypassed.")
+		end
 	end
 end
 
