@@ -33,5 +33,6 @@ local StatManager = require(script.Parent.Core:WaitForChild("StatManager"))
 local WeaponService = require(script.Parent.Combat:WaitForChild("WeaponService"))
 local DropService = require(script.Parent.Environment:WaitForChild("DropService"))
 local ShopService = require(script.Parent.Core:WaitForChild("ShopService"))
+local LoadoutManager = require(script.Parent.Core:WaitForChild("LoadoutManager"))
 
 print("[Bootstrapper] All systems green. Server is live.")
