@@ -106,7 +106,7 @@ MeleeSwingEvent.OnServerEvent:Connect(function(player: Player)
 									-- If they aren't already burning, start the visual fire & damage loop
 									if not monsterHumanoid:GetAttribute("OnFire") then
 										monsterHumanoid:SetAttribute("OnFire", true)
-										local fire = Instance.new("Fire", Part)
+										local fire = Instance.new("Fire", part)
 										
 										task.spawn(function()
 											for _ = 1, fMath.DurationSeconds do
