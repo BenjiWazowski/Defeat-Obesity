@@ -80,20 +80,24 @@ function WaveManager.StartWave()
 	CurrentWave += 1
 	WaveInProgress = true
 	
-	TotalWaveQuota = math.floor(BASE_MONSTERS * (WAVE_MULTIPLIER ^ (CurrentWave - 1)))
+s	-- [[ NEW CO-OP SCALING MATH ]]
+	local playerCount = #Players:GetPlayers()
+	local coopMultiplier = 1 + ((playerCount - 1) * 0.5) -- +50% extra monsters per additional player
+	
+	local baseQuota = math.floor(BASE_MONSTERS * (WAVE_MULTIPLIER ^ (CurrentWave - 1)))
+	TotalWaveQuota = math.floor(baseQuota * coopMultiplier)
+	
 	MonstersSpawned = 0
 	ActiveMonsters = 0
 
-	-- Tell the UI to hide the countdown
 	Workspace:SetAttribute("WaveState", "Active")
 
-	-- Recalculate and inject player stats for the new wave
 	for _, player in ipairs(Players:GetPlayers()) do
 		StatManager.CalculateStats(player, CurrentWave)
 		StatManager.ApplyPhysicalStats(player)
 	end
 	
-	print("\n🚨 WAVE " .. CurrentWave .. " STARTED 🚨 Quota: " .. TotalWaveQuota)
+	print("\n🚨 WAVE " .. CurrentWave .. " STARTED 🚨 Quota: " .. TotalWaveQuota .. " (Players: " .. playerCount .. ")")
 	Workspace:SetAttribute("CurrentWave", CurrentWave)
 	
 	task.spawn(function()
